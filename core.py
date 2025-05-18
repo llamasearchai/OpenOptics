@@ -33,6 +33,7 @@ from typing import Dict, List, Any, Optional, Union, Tuple, Set, Type, Callable,
 from dataclasses import dataclass, field, asdict
 from functools import lru_cache
 import asyncio
+import copy
 
 # Data analysis and scientific computing
 import numpy as np
@@ -565,114 +566,485 @@ class OpticalEvaluator:
         return comparison
 
 class NetworkSimulator:
-    """Placeholder for the Network Simulator."""
-    def __init__(self):
-        logger.info("NetworkSimulator initialized.")
-
+    """Simulator for optical network performance and failures."""
+    
+    def __init__(self, component_library=None, evaluator=None):
+        self.component_library = component_library
+        self.evaluator = evaluator
+        self.logger = logging.getLogger(__name__ + ".NetworkSimulator")
+        self.logger.info("NetworkSimulator initialized")
+        
     def simulate_network(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        sim_name = config.get('name', 'UnnamedSimulation')
-        logger.info(f"NetworkSimulator: Starting simulation for '{sim_name}'")
-
-        # Extract parameters from config, with defaults
-        num_nodes = config.get('num_nodes', 10)
-        num_links = config.get('num_links', max(num_nodes -1, 0) if num_nodes > 0 else 0)
-        avg_link_capacity_gbps = config.get('avg_link_capacity_gbps', 100.0)
-        # traffic_load_gbps could be an explicit input, or derived from intensity + total capacity
-        traffic_intensity_percent = config.get('traffic_intensity_percent', 60.0) # Percentage of total capacity utilized
-        duration_hours = config.get('duration_hours', 1.0)
-        reliability_factor = config.get('reliability_factor', 0.999) # 0.9 to 1.0
-
-        if num_nodes <= 0 or num_links < 0 or avg_link_capacity_gbps <=0:
-            logger.error(f"Invalid simulation parameters for '{sim_name}'. Nodes/links/capacity must be positive.")
-            return {
-                "status": "error",
-                "message": "Invalid simulation parameters (nodes, links, capacity must be positive).",
-                "sim_name": sim_name
+        """Simulate network performance based on configuration."""
+        try:
+            self.logger.info(f"Simulating network with config: {config.get('name', 'unnamed')}")
+            
+            # Extract configuration parameters
+            topology = config.get("topology", {})
+            components = config.get("components", [])
+            links = config.get("links", [])
+            duration_hours = config.get("duration_hours", 24)
+            load_factor = config.get("load_factor", 0.7)  # 70% load by default
+            
+            # If components are specified by ID, look them up
+            if self.component_library and all(isinstance(c, str) for c in components):
+                components = [self.component_library.get_component(c_id) for c_id in components]
+                components = [c for c in components if c is not None]
+            
+            # Build the network model
+            network_model = self._build_network_model(topology, components, links)
+            
+            # Run the simulation
+            performance_metrics = self._simulate_performance(network_model, duration_hours, load_factor)
+            
+            # Simulate events
+            events = self._simulate_events(network_model, duration_hours)
+            
+            # Combine results
+            results = {
+                "simulation_id": str(uuid.uuid4()),
+                "config_name": config.get("name", "unnamed"),
+                "duration_hours": duration_hours,
+                "performance_metrics": performance_metrics,
+                "events": events,
+                "timestamp": datetime.datetime.now().isoformat()
             }
-
-        # --- Simplified Derived Metrics ---
+            
+            return results
+            
+        except Exception as e:
+            self.logger.error(f"Error simulating network: {e}")
+            return {"error": str(e)}
+            
+    def _build_network_model(self, topology, components, links):
+        """Build a network model for simulation."""
+        # Create a network graph
+        graph = {"nodes": [], "edges": [], "components": {}}
         
-        # Estimate total network capacity
-        total_capacity_gbps = num_links * avg_link_capacity_gbps
-        
-        # Estimate actual traffic load based on intensity
-        actual_traffic_load_gbps = total_capacity_gbps * (traffic_intensity_percent / 100.0)
-
-        # Average Latency (ms): 
-        # Simplified: Lower for fewer nodes, higher for more. Increases with load.
-        base_latency_ms = 0.05 * num_nodes + random.uniform(0.01, 0.1) # Base structural latency
-        load_factor_latency = (traffic_intensity_percent / 100.0) ** 2 # Non-linear increase with load
-        avg_latency_ms = base_latency_ms * (1 + load_factor_latency * 0.5) # load adds up to 50% more latency
-        avg_latency_ms = max(0.01, avg_latency_ms) # Ensure positive latency
-
-        # Max Achieved Throughput (Gbps):
-        # Simplified: Capped by actual load, can be slightly less due to inefficiencies/bottlenecks
-        # Simulate some inefficiency, throughput is not always 100% of load if network is stressed
-        throughput_efficiency = 1.0 - (random.uniform(0.01, 0.05) * load_factor_latency) # More load, less efficiency
-        max_throughput_gbps = actual_traffic_load_gbps * throughput_efficiency
-        max_throughput_gbps = min(max_throughput_gbps, total_capacity_gbps * 0.98) # Cannot exceed capacity
-
-        # Packet Loss Rate:
-        # Simplified: Increases significantly as intensity approaches 100%
-        # Becomes non-negligible above ~70-80% utilization in this model
-        packet_loss_rate = 0.0
-        if traffic_intensity_percent > 75:
-            # Exponential-like increase in loss as intensity goes from 75 to 100
-            loss_exponent = (traffic_intensity_percent - 75) / 25.0 # Normalized 0 to 1
-            packet_loss_rate = (10**(loss_exponent * 2) -1) / 10000 # Max loss ~1% at 100% intensity (0.01 = 1/100)
-            packet_loss_rate *= (1.0 - reliability_factor + 0.001) # Base network unreliability contributes
-        packet_loss_rate = max(0.0, min(packet_loss_rate, 0.05)) # Cap loss at 5%
-        
-        # Utilization Stats (average link utilization)
-        # Simplified: overall average, in reality it varies per link
-        avg_link_utilization = (actual_traffic_load_gbps / total_capacity_gbps) * 100 if total_capacity_gbps > 0 else 0
-        utilization_stats = {
-            "average_link_utilization_percent": round(avg_link_utilization, 2),
-            "peak_link_utilization_percent": round(min(100, avg_link_utilization * random.uniform(1.1, 1.5)),2) # Peak can be higher
-        }
-
-        # Simulate some events based on duration and reliability
-        num_events = int(duration_hours * (1.0 - reliability_factor) * num_links * 0.1) # Arbitrary event rate scaling
-        events_logged = []
-        for i in range(num_events):
-            event_time = random.uniform(0, duration_hours)
-            events_logged.append({
-                "time_hours": round(event_time, 2),
-                "type": random.choice(["link_degradation", "node_overload_spike"]),
-                "details": f"Simulated event {i+1} on a random element."
+        # Process nodes
+        for node_id, node_data in topology.get("nodes", {}).items():
+            graph["nodes"].append({
+                "id": node_id,
+                "type": node_data.get("type", "generic"),
+                "location": node_data.get("location", {}),
+                "components": []
             })
-
-        logger.info(f"NetworkSimulator: Simulation '{sim_name}' complete.")
-        return {
-            "status": "simulation_complete",
-            "sim_name": sim_name,
-            "inputs": config,
-            "results": {
-                "avg_latency_ms": round(avg_latency_ms, 3),
-                "max_achieved_throughput_gbps": round(max_throughput_gbps, 2),
-                "packet_loss_rate": round(packet_loss_rate, 6),
-                "utilization_stats": utilization_stats,
-                "simulated_events_count": len(events_logged),
-                "simulated_events": events_logged
-            }
+        
+        # Add components to nodes
+        for component in components:
+            comp_id = component.get("id")
+            node_id = component.get("node_id")
+            
+            if comp_id and node_id:
+                # Find the node
+                node = next((n for n in graph["nodes"] if n["id"] == node_id), None)
+                
+                if node:
+                    node["components"].append(comp_id)
+                    graph["components"][comp_id] = component
+        
+        # Process links
+        for link_id, link_data in topology.get("links", {}).items():
+            source = link_data.get("source")
+            target = link_data.get("target")
+            
+            if source and target:
+                graph["edges"].append({
+                    "id": link_id,
+                    "source": source,
+                    "target": target,
+                    "distance_km": link_data.get("distance_km", 0),
+                    "fiber_type": link_data.get("fiber_type", "smf"),
+                    "capacity_gbps": link_data.get("capacity_gbps", 0),
+                    "channels": link_data.get("channels", [])
+                })
+        
+        # If links are provided as a list instead of a dict
+        if isinstance(links, list):
+            for link_data in links:
+                source = link_data.get("source")
+                target = link_data.get("target")
+                
+                if source and target:
+                    link_id = link_data.get("id", f"{source}-{target}")
+                    graph["edges"].append({
+                        "id": link_id,
+                        "source": source,
+                        "target": target,
+                        "distance_km": link_data.get("distance_km", 0),
+                        "fiber_type": link_data.get("fiber_type", "smf"),
+                        "capacity_gbps": link_data.get("capacity_gbps", 0),
+                        "channels": link_data.get("channels", [])
+                    })
+        
+        return graph
+            
+    def _simulate_performance(self, network_model, duration_hours, load_factor):
+        """Simulate network performance over time."""
+        # Initialize performance metrics
+        metrics = {
+            "throughput_gbps": [],
+            "latency_ms": [],
+            "packet_loss_percent": [],
+            "osnr_db": [],
+            "power_consumption_w": [],
+            "timestamps": []
         }
-
-    def compare_topologies(self, configs: List[Dict[str, Any]]) -> Dict[str, Any]:
-        logger.info(f"NetworkSimulator: Comparing {len(configs)} topologies.")
+        
+        # Calculate base values
+        base_throughput = self._calculate_base_throughput(network_model)
+        base_latency = self._calculate_base_latency(network_model)
+        base_osnr = self._calculate_base_osnr(network_model)
+        base_power = self._calculate_power_consumption(network_model)
+        
+        # Calculate time steps
+        time_step_hours = 1.0  # 1-hour increments
+        steps = int(duration_hours / time_step_hours)
+        
+        # Generate time-series data
+        for step in range(steps):
+            # Calculate timestamp
+            timestamp = datetime.datetime.now() + datetime.timedelta(hours=step * time_step_hours)
+            
+            # Calculate time-varying load factor based on time of day
+            hour_of_day = timestamp.hour
+            time_factor = self._get_time_of_day_factor(hour_of_day)
+            current_load = load_factor * time_factor
+            
+            # Simulate some inefficiency, throughput is not always 100% of load if network is stressed
+            efficiency = max(0.8, 1.0 - (current_load - 0.7) * 0.5) if current_load > 0.7 else 1.0
+            
+            # Calculate metrics with variations
+            throughput = base_throughput * current_load * efficiency
+            
+            # Latency increases with load
+            latency_factor = 1.0 + max(0, (current_load - 0.7) * 0.5)
+            latency = base_latency * latency_factor
+            
+            # Packet loss increases exponentially with high load
+            packet_loss = 0.001 if current_load < 0.8 else 0.001 * math.exp((current_load - 0.8) * 10)
+            
+            # OSNR degrades slightly with load
+            osnr = base_osnr - (current_load * 2)
+            
+            # Power consumption increases with load
+            power = base_power * (0.7 + 0.3 * current_load)
+            
+            # Add random variations (1-2%)
+            throughput *= random.uniform(0.98, 1.02)
+            latency *= random.uniform(0.98, 1.02)
+            packet_loss *= random.uniform(0.95, 1.05)
+            osnr *= random.uniform(0.99, 1.01)
+            power *= random.uniform(0.99, 1.01)
+            
+            # Store metrics
+            metrics["throughput_gbps"].append(throughput)
+            metrics["latency_ms"].append(latency)
+            metrics["packet_loss_percent"].append(packet_loss * 100)  # Convert to percentage
+            metrics["osnr_db"].append(osnr)
+            metrics["power_consumption_w"].append(power)
+            metrics["timestamps"].append(timestamp.isoformat())
+        
+        # Calculate summary statistics
+        summary = {
+            "avg_throughput_gbps": sum(metrics["throughput_gbps"]) / len(metrics["throughput_gbps"]),
+            "max_throughput_gbps": max(metrics["throughput_gbps"]),
+            "min_throughput_gbps": min(metrics["throughput_gbps"]),
+            "avg_latency_ms": sum(metrics["latency_ms"]) / len(metrics["latency_ms"]),
+            "max_latency_ms": max(metrics["latency_ms"]),
+            "avg_packet_loss_percent": sum(metrics["packet_loss_percent"]) / len(metrics["packet_loss_percent"]),
+            "avg_osnr_db": sum(metrics["osnr_db"]) / len(metrics["osnr_db"]),
+            "min_osnr_db": min(metrics["osnr_db"]),
+            "avg_power_consumption_w": sum(metrics["power_consumption_w"]) / len(metrics["power_consumption_w"])
+        }
+        
+        return {
+            "time_series": metrics,
+            "summary": summary
+        }
+    
+    def _simulate_events(self, network_model, duration_hours):
+        """Simulate network events such as failures and alarms."""
+        # Calculate the number of events based on duration and reliability
+        # Higher reliability = fewer events
+        
+        component_count = len(network_model.get("components", {}))
+        link_count = len(network_model.get("edges", []))
+        
+        # Base event rate: events per hour
+        base_event_rate = 0.01  # 1 event per 100 hours on average
+        
+        # Calculate expected number of events
+        expected_events = base_event_rate * duration_hours * (component_count + link_count) / 100
+        
+        # Poisson distribution for number of events
+        num_events = np.random.poisson(expected_events)
+        
+        # Generate events
+        events_logged = []
+        
+        for i in range(num_events):
+            # Random time within the simulation period
+            event_time = datetime.datetime.now() + datetime.timedelta(
+                hours=random.uniform(0, duration_hours)
+            )
+            
+            # Determine if it's a component or link event
+            is_component_event = random.random() < (component_count / (component_count + link_count))
+            
+            if is_component_event and component_count > 0:
+                # Component event
+                component_ids = list(network_model["components"].keys())
+                component_id = random.choice(component_ids)
+                component = network_model["components"][component_id]
+                
+                event = {
+                    "type": "component_event",
+                    "component_id": component_id,
+                    "component_type": component.get("type", "unknown"),
+                    "severity": random.choice(["info", "warning", "critical"]),
+                    "timestamp": event_time.isoformat(),
+                    "details": f"Simulated event {i+1} on component {component_id}."
+                }
+            elif link_count > 0:
+                # Link event
+                edges = network_model["edges"]
+                link = random.choice(edges)
+                
+                event = {
+                    "type": "link_event",
+                    "link_id": link["id"],
+                    "source": link["source"],
+                    "target": link["target"],
+                    "severity": random.choice(["info", "warning", "critical"]),
+                    "timestamp": event_time.isoformat(),
+                    "details": f"Simulated event {i+1} on a random element."
+                }
+            else:
+                # Generic event if no components or links
+                event = {
+                    "type": "system_event",
+                    "severity": random.choice(["info", "warning", "critical"]),
+                    "timestamp": event_time.isoformat(),
+                    "details": f"Simulated event {i+1} on the system."
+                }
+            
+            events_logged.append(event)
+        
+        # Sort events by timestamp
+        events_logged.sort(key=lambda e: e["timestamp"])
+        
+        return {
+            "simulated_events_count": len(events_logged),
+            "simulated_events": events_logged
+        }
+    
+    def compare_topologies(self, topologies, config):
+        """Compare multiple topologies using the same simulation parameters."""
         results = {}
-        for i, config in enumerate(configs):
-            results[f"topology_{i}_{config.get('name', '')}"] = self.simulate_network(config)
+        
+        for i, topology in enumerate(topologies):
+            # Create a config for this topology
+            topo_config = copy.deepcopy(config)
+            topo_config["topology"] = topology
+            
+            # Run simulation
+            results[f"topology_{i}_{config.get('name', '')}"] = self.simulate_network(topo_config)
+        
         return results
-
+    
     def simulate_failure_scenarios(self, config: Dict[str, Any], scenarios: List[Dict[str, Any]]) -> Dict[str, Any]:
-        logger.info(f"NetworkSimulator: Simulating {len(scenarios)} failure scenarios.")
-        results = {}
+        """Simulate various failure scenarios and their impact on the network."""
+        base_simulation = self.simulate_network(config)
+        scenario_simulations = {}
+        
         for i, scenario in enumerate(scenarios):
-            # In a real sim, config would be modified by scenario
-            results[f"failure_scenario_{i}_{scenario.get('name', '')}"] = {
-                "impact": "high", "affected_services": ["service_A"], "recovery_time_estimate_min": random.randint(5,60)
+            # Create a modified config based on the scenario
+            scenario_config = copy.deepcopy(config)
+            
+            # Apply scenario modifications
+            self._apply_scenario_to_config(scenario_config, scenario)
+            
+            # Run simulation with the modified config
+            scenario_sim = self.simulate_network(scenario_config)
+            
+            # Calculate impact
+            impact = self._calculate_scenario_impact(base_simulation, scenario_sim)
+            
+            # Store results
+            scenario_simulations[f"scenario_{i}_{scenario.get('name', '')}"] = {
+                "scenario": scenario,
+                "simulation": scenario_sim,
+                "impact": impact
             }
-        return results
+        
+        return {
+            "base_simulation": base_simulation,
+            "scenarios": scenario_simulations
+        }
+    
+    def _apply_scenario_to_config(self, config, scenario):
+        """Apply a failure scenario to a configuration."""
+        scenario_type = scenario.get("type", "")
+        
+        if scenario_type == "component_failure":
+            # Handle component failure
+            component_id = scenario.get("component_id")
+            
+            if component_id:
+                # Find and modify the component
+                for comp in config.get("components", []):
+                    if isinstance(comp, dict) and comp.get("id") == component_id:
+                        comp["status"] = "failed"
+                        break
+        
+        elif scenario_type == "link_failure":
+            # Handle link failure
+            link_id = scenario.get("link_id")
+            
+            if link_id:
+                # Find and modify the link
+                for link in config.get("links", []):
+                    if isinstance(link, dict) and link.get("id") == link_id:
+                        link["status"] = "failed"
+                        break
+        
+        elif scenario_type == "partial_degradation":
+            # Handle partial degradation
+            component_id = scenario.get("component_id")
+            degradation_factor = scenario.get("degradation_factor", 0.5)
+            
+            if component_id:
+                # Find and modify the component
+                for comp in config.get("components", []):
+                    if isinstance(comp, dict) and comp.get("id") == component_id:
+                        comp["degradation_factor"] = degradation_factor
+                        break
+        
+        elif scenario_type == "traffic_surge":
+            # Handle traffic surge
+            surge_factor = scenario.get("surge_factor", 1.5)
+            config["load_factor"] = config.get("load_factor", 0.7) * surge_factor
+    
+    def _calculate_scenario_impact(self, base_sim, scenario_sim):
+        """Calculate the impact of a scenario compared to the base simulation."""
+        impact = {}
+        
+        # Extract summary metrics
+        base_summary = base_sim.get("performance_metrics", {}).get("summary", {})
+        scenario_summary = scenario_sim.get("performance_metrics", {}).get("summary", {})
+        
+        # Calculate impact for each metric
+        for metric in ["avg_throughput_gbps", "avg_latency_ms", "avg_packet_loss_percent", 
+                      "avg_osnr_db", "avg_power_consumption_w"]:
+            if metric in base_summary and metric in scenario_summary:
+                base_value = base_summary[metric]
+                scenario_value = scenario_summary[metric]
+                
+                if base_value != 0:
+                    percent_change = (scenario_value - base_value) / base_value * 100
+                else:
+                    percent_change = float('inf') if scenario_value > 0 else 0
+                
+                impact[f"{metric}_change"] = percent_change
+        
+        # Calculate overall impact score
+        throughput_impact = abs(impact.get("avg_throughput_gbps_change", 0))
+        latency_impact = abs(impact.get("avg_latency_ms_change", 0))
+        packet_loss_impact = abs(impact.get("avg_packet_loss_percent_change", 0))
+        
+        # Weighted impact score
+        overall_impact = (
+            0.5 * throughput_impact + 
+            0.3 * latency_impact + 
+            0.2 * packet_loss_impact
+        ) / 100  # Normalize to 0-1 scale
+        
+        impact["overall_impact_score"] = min(1.0, overall_impact)
+        
+        return impact
+    
+    def _calculate_base_throughput(self, network_model):
+        """Calculate the base throughput capacity of the network."""
+        throughput = 0
+        
+        # Sum up the capacity of all edges
+        for edge in network_model.get("edges", []):
+            throughput += edge.get("capacity_gbps", 0)
+        
+        # If no capacity was specified on edges, estimate from components
+        if throughput == 0:
+            for comp_id, component in network_model.get("components", {}).items():
+                if component.get("type") == "transceiver":
+                    throughput += component.get("capacity_gbps", 0)
+        
+        return max(throughput, 100)  # Minimum of 100 Gbps for simulation
+    
+    def _calculate_base_latency(self, network_model):
+        """Calculate the base latency of the network."""
+        total_distance = 0
+        
+        # Sum up the distance of all edges
+        for edge in network_model.get("edges", []):
+            total_distance += edge.get("distance_km", 0)
+        
+        # Calculate latency based on distance
+        # Speed of light in fiber: ~200,000 km/s (2/3 of c)
+        # 1 ms per 200 km, plus 0.1 ms per hop for equipment latency
+        hop_count = len(network_model.get("edges", []))
+        
+        latency = (total_distance / 200) + (hop_count * 0.1)
+        
+        return max(latency, 1.0)  # Minimum of 1 ms for simulation
+    
+    def _calculate_base_osnr(self, network_model):
+        """Calculate the base OSNR of the network."""
+        # Typical OSNR values for optical networks: 15-25 dB
+        return 20.0  # Default OSNR
+    
+    def _calculate_power_consumption(self, network_model):
+        """Calculate the power consumption of the network."""
+        power = 0
+        
+        # Sum up power consumption of all components
+        for comp_id, component in network_model.get("components", {}).items():
+            power += component.get("power_consumption_w", 0)
+        
+        # If no power was specified, estimate based on component types
+        if power == 0:
+            for comp_id, component in network_model.get("components", {}).items():
+                comp_type = component.get("type", "")
+                
+                if comp_type == "transceiver":
+                    capacity = component.get("capacity_gbps", 100)
+                    power += capacity / 10  # ~10 W per 100G
+                elif comp_type == "amplifier":
+                    power += 20  # ~20 W
+                elif comp_type == "roadm":
+                    degrees = component.get("degrees", 4)
+                    power += degrees * 25  # ~25 W per degree
+        
+        return max(power, 100)  # Minimum of 100 W for simulation
+    
+    def _get_time_of_day_factor(self, hour):
+        """Get a load factor based on time of day (0-23)."""
+        # Define traffic patterns
+        # - Night (0-5): Low traffic (40-60%)
+        # - Morning (6-9): Increasing traffic (60-100%)
+        # - Day (10-16): High traffic (90-100%)
+        # - Evening (17-21): Decreasing traffic (70-90%)
+        # - Night (22-23): Low traffic (50-70%)
+        
+        if 0 <= hour <= 5:
+            return 0.4 + (hour / 5) * 0.2  # 40-60%
+        elif 6 <= hour <= 9:
+            return 0.6 + (hour - 6) / 3 * 0.4  # 60-100%
+        elif 10 <= hour <= 16:
+            return 0.9 + (hour - 10) / 6 * 0.1  # 90-100%
+        elif 17 <= hour <= 21:
+            return 0.9 - (hour - 17) / 4 * 0.2  # 90-70%
+        else:  # 22-23
+            return 0.7 - (hour - 22) / 1 * 0.2  # 70-50%
 
 class OpticalTester:
     """Placeholder for the Optical Component/System Tester."""

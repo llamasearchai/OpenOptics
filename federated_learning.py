@@ -5,14 +5,21 @@ import asyncio # Ensure asyncio is imported
 import random
 import pickle # Ensure pickle is imported for the proxy if it needs to handle it directly
 import base64 # Ensure base64 is imported for the proxy
+import copy
+import os
+import threading
+import time
+import uuid
 
 # Attempt to import httpx, or define a placeholder if not available
 # In a real setup, httpx should be in requirements.txt
 try:
     import httpx
+    HTTPX_AVAILABLE = True
 except ImportError:
     httpx = None # type: ignore
     logger.warning("httpx library is not installed. RemoteAggregationServerProxy will not function.")
+    HTTPX_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +46,14 @@ class AggregationServer:
         self.global_model_parameters: Dict[str, np.ndarray] = {"default_weights": np.array([1.0, 1.0, 1.0])} 
         self.received_updates: List[Dict[str, Any]] = []
         self.current_round = 0
+        self.global_model = None
+        self.model_architecture = None
+        self.client_updates = {}
+        self.round_active = False
+        self.lock = threading.Lock()
+        self.client_counts = {}
+        self.id = str(uuid.uuid4())[:8]
+        logger.info(f"AggregationServer {self.id} initialized")
 
     async def start(self):
         logger.info("AggregationServer started for a new federation round.")
@@ -142,6 +157,8 @@ class RemoteAggregationServerProxy:
         self.client_id = client_id # Needed for context in some calls
         self.http_client = http_client if http_client else httpx.AsyncClient()
         # Note: For a real app, manage the lifecycle of http_client (e.g., close it)
+        self.id = str(uuid.uuid4())[:8]
+        logger.info(f"RemoteAggregationServerProxy {self.id} initialized with URL: {coordinator_base_url}")
 
     async def register_client(self, client_id: str):
         # This is a conceptual registration. The actual API might vary.

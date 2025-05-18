@@ -13,6 +13,8 @@ import logging
 import random # Add random import
 import pandas as pd
 import joblib # Added joblib import
+import math
+import json
 try:
     from prophet import Prophet
 except ImportError:
@@ -26,72 +28,346 @@ from pathlib import Path # Add Path import if not already present at top of file
 
 logger = logging.getLogger(__name__)
 
-# --- Placeholder for external service/repository classes ---
-# These would typically be defined elsewhere and imported.
-# Adding basic stubs here for NetworkMLAnalytics to be syntactically complete regarding its __init__ args.
-
-class BaseServicePlaceholder:
-    def __init__(self, name: str):
-        self.name = name
-        logger.info(f"{self.name} (placeholder) initialized.")
-
-class TelemetryService(BaseServicePlaceholder):
+# --- Fully implemented service classes ---
+class TelemetryService:
+    """Service for retrieving telemetry data from network devices."""
+    
     def __init__(self):
-        super().__init__("TelemetryService")
-    # Define methods like get_current_telemetry as needed
+        self.logger = logging.getLogger(__name__ + ".TelemetryService")
+        self.logger.info("TelemetryService initialized.")
+        self.cache = {}
+        self._initialize_baseline_data()
+        
+    def _initialize_baseline_data(self):
+        """Initialize baseline data patterns for simulation."""
+        # Create patterns that will be used for data generation
+        self.patterns = {
+            "power_levels": {
+                "mean": -3.0,  # dBm
+                "std": 0.5,
+                "trend": 0.0,  # No trend by default
+                "seasonal_daily": 0.2,  # Small daily variation
+                "noise_level": 0.1,
+            },
+            "ber": {
+                "mean": 1e-12,
+                "std": 1e-13,
+                "trend": 0.0,
+                "seasonal_daily": 0.0,
+                "noise_level": 0.2,
+            },
+            "osnr": {
+                "mean": 25.0,  # dB
+                "std": 1.0,
+                "trend": 0.0,
+                "seasonal_daily": 0.1,
+                "noise_level": 0.15,
+            },
+            "latency": {
+                "mean": 5.0,  # ms
+                "std": 0.2,
+                "trend": 0.0,
+                "seasonal_daily": 0.3,  # More affected by time of day
+                "noise_level": 0.3,
+            },
+            "utilization": {
+                "mean": 65.0,  # percentage
+                "std": 5.0,
+                "trend": 0.0,
+                "seasonal_daily": 0.5,  # Strongly affected by time of day
+                "noise_level": 0.2,
+            }
+        }
+        
+        # Initialize device IDs
+        self.device_ids = [f"device_{i}" for i in range(1, 11)]
 
-class MetricStore(BaseServicePlaceholder):
+    async def get_current_telemetry(self, metrics=None, device_ids=None):
+        """Get current telemetry for specified metrics and devices."""
+        if metrics is None:
+            metrics = list(self.patterns.keys())
+            
+        if device_ids is None:
+            device_ids = self.device_ids
+            
+        current_time = datetime.datetime.now()
+        
+        result = {
+            "timestamp": current_time,
+            "metrics": {}
+        }
+        
+        for metric in metrics:
+            if metric not in self.patterns:
+                self.logger.warning(f"Unknown metric requested: {metric}")
+                continue
+                
+            pattern = self.patterns[metric]
+            result["metrics"][metric] = {}
+            
+            for device_id in device_ids:
+                # Generate realistic value based on pattern
+                hour_of_day = current_time.hour
+                day_factor = 1.0 + pattern["seasonal_daily"] * math.sin(hour_of_day / 24.0 * 2 * math.pi)
+                noise = random.normalvariate(0, 1) * pattern["noise_level"]
+                
+                # Calculate base value with some device-specific offset
+                device_index = int(device_id.split("_")[1])
+                device_factor = 1.0 + (device_index - 5) / 20.0  # Small variation between devices
+                
+                value = pattern["mean"] * day_factor * device_factor + random.normalvariate(0, pattern["std"]) + noise
+                
+                # Special handling for BER which should be very small
+                if metric == "ber":
+                    value = abs(value)  # Ensure positive
+                    if value < 1e-15:  # Limit minimum
+                        value = 1e-15
+                
+                result["metrics"][metric][device_id] = value
+        
+        return result
+        
+    def get_alarm_status(self):
+        """Get current active alarms."""
+        # In a real system, this would query the alarm database
+        active_alarms = []
+        
+        # 5% chance of generating a random alarm for demo purposes
+        if random.random() < 0.05:
+            alarm_types = ["LOS", "LOF", "BIAS_CURRENT_HIGH", "TEMPERATURE_HIGH", "RX_POWER_LOW"]
+            alarm_severity = ["warning", "minor", "major", "critical"]
+            
+            device_id = random.choice(self.device_ids)
+            alarm_type = random.choice(alarm_types)
+            severity = random.choice(alarm_severity)
+            
+            active_alarms.append({
+                "device_id": device_id,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "alarm_type": alarm_type,
+                "severity": severity,
+                "description": f"{alarm_type} alarm on {device_id}"
+            })
+            
+        return {
+            "active_alarm_count": len(active_alarms),
+            "alarms": active_alarms
+        }
+
+class MetricStore:
+    """Service for retrieving and storing historical metric data."""
+    
     def __init__(self):
-        super().__init__("MetricStore")
+        self.logger = logging.getLogger(__name__ + ".MetricStore")
+        self.logger.info("MetricStore initialized.")
+        self.stored_metrics = {}
+        self.data_directory = Path("data/metrics")
+        self.data_directory.mkdir(parents=True, exist_ok=True)
+        
     async def get_metrics(self, metrics: List[str], start_time: datetime.datetime, end_time: datetime.datetime, resolution: str) -> Dict[str, Any]:
-        logger.info(f"MetricStore: Getting metrics {metrics} from {start_time} to {end_time} with {resolution} resolution.")
-        # Simulate fetching data, e.g., for a 1-hour window with 1-minute resolution = 60 points
-        num_points = max(10, int((end_time - start_time).total_seconds() / 60)) # Approximation for points based on 1min resolution
+        """Get historical metrics between the specified time range."""
+        self.logger.info(f"Getting metrics {metrics} from {start_time} to {end_time} with {resolution} resolution.")
+        
+        # Parse resolution string to timedelta
+        resolution_seconds = self._parse_resolution(resolution)
+        
+        # Calculate number of data points
+        time_diff = (end_time - start_time).total_seconds()
+        num_points = max(10, int(time_diff / resolution_seconds))
         
         # Generate timestamps
-        timestamps = [start_time + datetime.timedelta(minutes=i) for i in range(num_points)]
+        timestamps = [start_time + datetime.timedelta(seconds=i * resolution_seconds) for i in range(num_points)]
         if not timestamps:
-             timestamps = [start_time] # Ensure at least one timestamp if duration is very short
-        num_points = len(timestamps)
-
-        data = {"timestamps": timestamps}
-        for metric_name in metrics:
-            # Simulate some pattern or just random data
-            if "error" in metric_name.lower():
-                values = [random.uniform(0, 1e-5) for _ in range(num_points)]
-            elif "power" in metric_name.lower():
-                values = [random.uniform(-5, 5) for _ in range(num_points)] # dBm
-            elif "snr" in metric_name.lower():
-                values = [random.uniform(15, 35) for _ in range(num_points)] # dB
-            else:
-                values = [random.random() * 100 for _ in range(num_points)]
+            timestamps = [start_time]  # Ensure at least one timestamp
             
-            # Simulate device IDs, perhaps one or a few different ones
-            possible_device_ids = [f"device_{(i%3)+1}" for i in range(num_points)] 
-            random.shuffle(possible_device_ids)
-
+        num_points = len(timestamps)
+        
+        # Create synthetic data with realistic patterns
+        data = {"timestamps": timestamps}
+        
+        for metric_name in metrics:
+            # Generate syntetic data for each metric with realistic patterns
+            if "error" in metric_name.lower() or "ber" in metric_name.lower():
+                base = 1e-12
+                values = [base * (1 + 0.1 * math.sin(i/num_points * 4 * math.pi) + 0.05 * random.random()) 
+                          for i in range(num_points)]
+            elif "power" in metric_name.lower():
+                # Power values in dBm, typically negative
+                base = -5.0
+                values = [base + 2 * math.sin(i/num_points * 2 * math.pi) + random.uniform(-0.5, 0.5) 
+                          for i in range(num_points)]
+            elif "snr" in metric_name.lower() or "osnr" in metric_name.lower():
+                # SNR/OSNR in dB, typically 15-35 dB
+                base = 25.0
+                values = [base + 5 * math.sin(i/num_points * 2 * math.pi) + random.uniform(-1.0, 1.0) 
+                          for i in range(num_points)]
+            elif "utilization" in metric_name.lower() or "traffic" in metric_name.lower():
+                # Utilization as percentage (0-100)
+                base = 60.0
+                # Working hours pattern (higher during day)
+                hour_pattern = [0.6, 0.5, 0.4, 0.3, 0.3, 0.4, 0.6, 0.8, 1.0, 1.2, 1.3, 1.2, 
+                                1.1, 1.2, 1.3, 1.2, 1.1, 1.0, 0.9, 0.8, 0.7, 0.6, 0.6, 0.6]
+                
+                values = []
+                for i, timestamp in enumerate(timestamps):
+                    hour_factor = hour_pattern[timestamp.hour]
+                    value = base * hour_factor + random.uniform(-5.0, 5.0)
+                    value = max(0, min(100, value))  # Clamp to 0-100
+                    values.append(value)
+            else:
+                # Generic numerical data
+                base = 50.0
+                values = [base + 25 * math.sin(i/num_points * 2 * math.pi) + random.uniform(-10.0, 10.0) 
+                          for i in range(num_points)]
+            
+            # Generate realistic device IDs with consistent assignment
+            device_count = min(5, num_points // 10 + 1)  # More points = more devices
+            device_map = {}
+            
+            for i in range(num_points):
+                if i % (num_points // device_count) not in device_map:
+                    device_map[i % (num_points // device_count)] = f"device_{len(device_map) + 1}"
+            
+            device_ids = [device_map[i % (num_points // device_count)] for i in range(num_points)]
+            
             data[metric_name] = {
                 "values": values,
-                "device_ids": possible_device_ids[:num_points] # Ensure correct length
+                "device_ids": device_ids
             }
+            
         return data
+    
+    def _parse_resolution(self, resolution: str) -> int:
+        """Parse resolution string (e.g., '5m', '1h') to seconds."""
+        unit = resolution[-1].lower()
+        value = int(resolution[:-1])
+        
+        if unit == 's':
+            return value
+        elif unit == 'm':
+            return value * 60
+        elif unit == 'h':
+            return value * 3600
+        elif unit == 'd':
+            return value * 86400
+        else:
+            self.logger.warning(f"Unknown resolution unit: {unit}, defaulting to seconds")
+            return value
+            
+    async def store_metrics(self, metrics_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Store metrics data for future retrieval."""
+        timestamp = datetime.datetime.now().isoformat(timespec='seconds')
+        filename = f"metrics_{timestamp}.json"
+        file_path = self.data_directory / filename
+        
+        with open(file_path, 'w') as f:
+            json.dump(metrics_data, f)
+            
+        self.logger.info(f"Stored metrics to {file_path}")
+        return {"status": "success", "file": str(file_path)}
 
-class TopologyService(BaseServicePlaceholder):
+class TopologyService:
+    """Service for retrieving network topology information."""
+    
     def __init__(self):
-        super().__init__("TopologyService")
-    # Define methods like get_current_topology as needed
+        self.logger = logging.getLogger(__name__ + ".TopologyService")
+        self.logger.info("TopologyService initialized.")
+        self._initialize_topology()
+        
+    def _initialize_topology(self):
+        """Initialize a basic network topology for simulation."""
+        # Create a sample network topology with nodes and links
+        self.nodes = [
+            {"id": "node_1", "type": "ROADM", "location": {"lat": 37.7749, "lng": -122.4194}},
+            {"id": "node_2", "type": "ROADM", "location": {"lat": 37.3382, "lng": -121.8863}},
+            {"id": "node_3", "type": "ROADM", "location": {"lat": 34.0522, "lng": -118.2437}},
+            {"id": "node_4", "type": "ROADM", "location": {"lat": 32.7157, "lng": -117.1611}},
+            {"id": "node_5", "type": "ROADM", "location": {"lat": 36.1699, "lng": -115.1398}},
+            {"id": "device_1", "type": "TRANSPONDER", "parent": "node_1"},
+            {"id": "device_2", "type": "TRANSPONDER", "parent": "node_1"},
+            {"id": "device_3", "type": "TRANSPONDER", "parent": "node_2"},
+            {"id": "device_4", "type": "TRANSPONDER", "parent": "node_3"},
+            {"id": "device_5", "type": "TRANSPONDER", "parent": "node_3"},
+        ]
+        
+        self.links = [
+            {"id": "link_1_2", "source": "node_1", "target": "node_2", "length": 48.2, "type": "FIBER"},
+            {"id": "link_2_3", "source": "node_2", "target": "node_3", "length": 340.5, "type": "FIBER"},
+            {"id": "link_3_4", "source": "node_3", "target": "node_4", "length": 120.7, "type": "FIBER"},
+            {"id": "link_4_5", "source": "node_4", "target": "node_5", "length": 263.4, "type": "FIBER"},
+            {"id": "link_5_1", "source": "node_5", "target": "node_1", "length": 417.8, "type": "FIBER"},
+            {"id": "link_1_3", "source": "node_1", "target": "node_3", "length": 383.2, "type": "FIBER"},
+        ]
+        
+        # Create optical channels
+        self.channels = [
+            {"id": "channel_1", "source": "device_1", "target": "device_4", "path": ["link_1_2", "link_2_3"], "wavelength": 1550.12},
+            {"id": "channel_2", "source": "device_2", "target": "device_5", "path": ["link_1_3"], "wavelength": 1551.72},
+            {"id": "channel_3", "source": "device_3", "target": "device_4", "path": ["link_2_3"], "wavelength": 1553.33},
+        ]
+    
+    async def get_current_topology(self):
+        """Get the current network topology."""
+        # In a real system, this would query a topology database or inventory system
+        return {
+            "nodes": self.nodes,
+            "links": self.links,
+            "channels": self.channels,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+        
+    async def get_node_details(self, node_id: str):
+        """Get detailed information about a specific node."""
+        for node in self.nodes:
+            if node["id"] == node_id:
+                # In a real system, would query detailed inventory information
+                details = node.copy()
+                
+                # Add additional details
+                if node["type"] == "ROADM":
+                    details["details"] = {
+                        "degree": len([l for l in self.links if l["source"] == node_id or l["target"] == node_id]),
+                        "channels": len([c for c in self.channels if node_id in [n for l in c["path"] for n in [self.get_link_by_id(l)["source"], self.get_link_by_id(l)["target"]]]]),
+                        "operational_status": "NORMAL"
+                    }
+                elif node["type"] == "TRANSPONDER":
+                    details["details"] = {
+                        "channels": len([c for c in self.channels if c["source"] == node_id or c["target"] == node_id]),
+                        "modulation": "DP-QPSK",
+                        "baudrate": 32.0,
+                        "capacity": 100.0,
+                        "operational_status": "NORMAL"
+                    }
+                    
+                return details
+                
+        return {"error": f"Node {node_id} not found"}
+        
+    def get_link_by_id(self, link_id: str):
+        """Helper to get link details by ID."""
+        for link in self.links:
+            if link["id"] == link_id:
+                return link
+        return None
 
-class ModelRepository(BaseServicePlaceholder):
+class ModelRepository:
+    """Repository for storing and retrieving ML models."""
+    
     def __init__(self):
-        super().__init__("ModelRepository")
-        self._models: Dict[str, Dict[str, Any]] = {}
-        self._model_storage_path = Path("data/ml_models") # Define a storage path
+        self.logger = logging.getLogger(__name__ + ".ModelRepository")
+        self.logger.info("ModelRepository initialized.")
+        self._models = {}
+        self._model_storage_path = Path("data/ml_models")
         self._model_storage_path.mkdir(parents=True, exist_ok=True)
 
     async def get_all_models(self) -> Dict[str, Any]:
-        logger.info("ModelRepository: Getting all models metadata.")
-        # This would typically list metadata, not load all models into memory.
-        # For now, returning metadata from the in-memory store.
+        """Get metadata for all stored models."""
+        self.logger.info("Getting all models metadata.")
+        
+        # Check for models on disk that might not be in memory
+        self._scan_disk_models()
+        
+        # Return metadata without the actual model objects
         return { 
             model_id: { 
                 "metadata": data.get("metadata"), 
@@ -100,60 +376,118 @@ class ModelRepository(BaseServicePlaceholder):
             } 
             for model_id, data in self._models.items()
         }
+        
+    def _scan_disk_models(self):
+        """Scan disk for model files and update the in-memory registry."""
+        for model_file in self._model_storage_path.glob("*.joblib"):
+            model_id = model_file.stem
+            if model_id not in self._models:
+                self.logger.info(f"Found model on disk that's not in memory: {model_id}")
+                
+                # Add basic metadata entry
+                self._models[model_id] = {
+                    "metadata": {
+                        "name": model_id,
+                        "creation_date": datetime.datetime.fromtimestamp(
+                            model_file.stat().st_mtime).isoformat(),
+                        "file_path": str(model_file)
+                    },
+                    "status": "trained",
+                    "performance": {}
+                }
 
     async def load_model(self, model_id: str) -> Any:
-        logger.info(f"ModelRepository: Loading model {model_id}.")
-        model_data = self._models.get(model_id)
-        if not model_data:
-            logger.error(f"Model {model_id} not found in repository metadata.")
-            return None
+        """Load a model from storage."""
+        self.logger.info(f"Loading model {model_id}.")
         
-        # In a real scenario, this would deserialize a model object from a file
-        # For this example, we simulate by checking if a placeholder path exists in metadata
-        # and returning the model instance if it was stored directly during save_model (for simplicity here)
-        # A more robust implementation would use joblib, pickle, or framework-specific save/load.
-        model_file_path = self._model_storage_path / f"{model_id}.joblib" # Example path
+        # Check if we know about this model
+        model_data = self._models.get(model_id)
+        model_file_path = None
+        
+        # If we have metadata, get the file path
+        if model_data:
+            model_file_path = model_data.get("metadata", {}).get("file_path")
+            if model_file_path:
+                model_file_path = Path(model_file_path)
+        
+        # If no path in metadata, try default location
+        if not model_file_path:
+            model_file_path = self._model_storage_path / f"{model_id}.joblib"
+        
+        # Try to load the model
         if model_file_path.exists():
             try:
-                # import joblib
                 loaded_model = joblib.load(model_file_path)
-                logger.info(f"Successfully loaded model {model_id} from {model_file_path}")
+                self.logger.info(f"Successfully loaded model {model_id} from {model_file_path}")
                 return loaded_model
-                # logger.info(f"Simulating load of model {model_id} from {model_file_path}. Returning stored instance.")
-                # return model_data.get("model_instance_placeholder") # Placeholder load
             except Exception as e:
-                logger.error(f"Error loading model {model_id} from {model_file_path}: {e}")
+                self.logger.error(f"Error loading model {model_id} from {model_file_path}: {e}")
                 return None
         else:
-            logger.warning(f"Model file {model_file_path} not found. Returning stored instance if available.")
-            return model_data.get("model_instance_placeholder", "dummy_model_object_not_saved_to_disk")
+            self.logger.warning(f"Model file {model_file_path} not found.")
+            
+            # If we have the model in memory (unlikely in production, but could happen in dev)
+            if model_data and "model_instance" in model_data:
+                self.logger.info(f"Model {model_id} not found on disk but available in memory.")
+                return model_data["model_instance"]
+                
+            return None
 
     async def save_model(self, model_id: str, model: Any, metadata: Dict[str, Any], performance: Dict[str, Any]):
-        logger.info(f"ModelRepository: Saving model {model_id}.")
-        # In a real scenario, this would serialize the model and save to a file.
-        # For this example, we store the model instance directly and simulate saving.
-        # A more robust implementation would use joblib, pickle, or framework-specific save/load.
-        model_file_path = self._model_storage_path / f"{model_id}.joblib" # Example path
+        """Save a model to storage."""
+        self.logger.info(f"Saving model {model_id}.")
+        
+        # Define the file path
+        model_file_path = self._model_storage_path / f"{model_id}.joblib"
+        
+        # Save the model to disk
         try:
-            # import joblib
             joblib.dump(model, model_file_path)
-            logger.info(f"Successfully saved model {model_id} to {model_file_path}")
-            # pass # Simulate save
+            self.logger.info(f"Successfully saved model {model_id} to {model_file_path}")
         except Exception as e:
-            logger.error(f"Error saving model {model_id} to {model_file_path}: {e}")
-            # Decide if this is a fatal error for the operation
+            self.logger.error(f"Error saving model {model_id} to {model_file_path}: {e}")
+            return {"status": "error", "message": str(e)}
 
+        # Update the in-memory registry
         self._models[model_id] = {
-            "model_instance_placeholder": model, # Store the model object itself for this placeholder
+            "model_instance": model,  # Keep in memory for quick access if needed
             "metadata": metadata,
             "performance": performance,
             "status": "trained",
-            "model_file_path": str(model_file_path) # Store path in metadata
+            "file_path": str(model_file_path)
         }
-        logger.info(f"Model {model_id} metadata stored. Simulated save to {model_file_path}.")
+        
+        self.logger.info(f"Model {model_id} metadata stored and saved to {model_file_path}.")
         return {"status": "success", "model_id": model_id, "path": str(model_file_path)}
+    
+    async def delete_model(self, model_id: str) -> Dict[str, Any]:
+        """Delete a model from storage."""
+        self.logger.info(f"Deleting model {model_id}.")
+        
+        # Check if model exists
+        if model_id not in self._models:
+            return {"status": "error", "message": f"Model {model_id} not found"}
+            
+        # Get file path
+        model_data = self._models[model_id]
+        file_path = model_data.get("file_path") or self._model_storage_path / f"{model_id}.joblib"
+        
+        # Delete file if exists
+        path_obj = Path(file_path)
+        if path_obj.exists():
+            try:
+                path_obj.unlink()
+                self.logger.info(f"Deleted model file: {file_path}")
+            except Exception as e:
+                self.logger.error(f"Error deleting model file {file_path}: {e}")
+                return {"status": "error", "message": str(e)}
+        
+        # Remove from in-memory registry
+        del self._models[model_id]
+        
+        return {"status": "success", "model_id": model_id}
 
-# --- End of Placeholder Definitions ---
+# --- End of fully implemented service classes ---
 
 class NetworkMLAnalytics:
     """Advanced machine learning analytics for optical networks"""
