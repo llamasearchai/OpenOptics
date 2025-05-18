@@ -1,0 +1,16 @@
+numpy
+torch
+scikit-learn
+pandas
+prophet
+xgboost
+cryptography
+# pyoqs # Commented out as it might require manual installation
+fastapi
+uvicorn[standard]
+python-multipart
+sqlite-utils
+llm # Core library by Simon Willison
+datasette-llm-embed # Specific plugin for embeddings in Datasette
+llm-cmd
+httpx # For asynchronous HTTP requests, used in federated_learning.py 

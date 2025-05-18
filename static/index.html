@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenOptics AI - Optical Network Architecture Framework</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .navbar-brand {
+            font-weight: bold;
+            color: #0d6efd;
+        }
+        .sidebar {
+            min-height: calc(100vh - 56px);
+            background-color: #f1f3f5;
+            padding-top: 20px;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .chat-container {
+            height: calc(100vh - 200px);
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: white;
+            border-radius: 10px;
+            border: 1px solid #dee2e6;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+        .user-message {
+            background-color: #e9f5ff;
+            margin-left: auto;
+        }
+        .agent-message {
+            background-color: #f0f0f0;
+            margin-right: auto;
+        }
+        .chat-input {
+            margin-top: 15px;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .design-form label {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .visualization-container {
+            height: 500px;
+            background-color: white;
+            border-radius: 10px;
+            border: 1px solid #dee2e6;
+            padding: 20px;
+        }
+        .agent-selector {
+            margin-bottom: 20px;
+        }
+        .agent-badge {
+            margin-right: 5px;
+            cursor: pointer;
+        }
+        .active-agent {
+            background-color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-router"></i> OpenOptics AI
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" id="nav-design">Network Design</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-optimization">Optimization</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-failure">Failure Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-components">Components</a>
+                    </li>
+                </ul>
+                <span class="navbar-text">
+                    <i class="bi bi-cpu"></i> AI-Enhanced Optical Network Framework
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-3 col-lg-2 sidebar">
+                <h5 class="px-3 mb-3">Tools</h5>
+                <div class="list-group list-group-flush">
+                    <a href="#" class="list-group-item list-group-item-action active">
+                        <i class="bi bi-chat-left-text"></i> AI Assistant
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="bi bi-diagram-3"></i> Network Topology
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="bi bi-gear"></i> Component Library
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="bi bi-graph-up"></i> Simulation
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="bi bi-lightbulb"></i> Design Advisor
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="bi bi-exclamation-triangle"></i> Failure Analysis
+                    </a>
+                </div>
+                
+                <h5 class="px-3 mb-3 mt-4">Recent Designs</h5>
+                <div class="list-group list-group-flush">
+                    <a href="#" class="list-group-item list-group-item-action">
+                        Hyperscale Datacenter DC1
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        Campus Interconnect Project
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        Edge Computing Network
+                    </a>
+                </div>
+            </div>
+            
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">AI Network Design Assistant</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group me-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary">Export</button>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-save"></i> Save Design
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-7">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">AI Assistant</h5>
+                                <div class="agent-selector">
+                                    <span class="badge rounded-pill text-bg-primary agent-badge active-agent" data-agent="design_assistant">
+                                        Design Assistant
+                                    </span>
+                                    <span class="badge rounded-pill text-bg-secondary agent-badge" data-agent="network_optimizer">
+                                        Network Optimizer
+                                    </span>
+                                    <span class="badge rounded-pill text-bg-secondary agent-badge" data-agent="failure_analyst">
+                                        Failure Analyst
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="chat-container">
+                                    <div class="chat-messages" id="chat-messages">
+                                        <div class="message agent-message">
+                                            Hello! I'm your AI optical networking assistant. How can I help you design, optimize, or troubleshoot your network today?
+                                        </div>
+                                        <div class="message user-message">
+                                            I need to design a network for a new AI training cluster with 64 compute nodes, each with 8x A100 GPUs. The network needs to support high throughput collective operations and have low latency.
+                                        </div>
+                                        <div class="message agent-message">
+                                            Based on your requirements for an AI training cluster, I recommend a non-blocking Clos network topology with the following specifications:
+
+1. Core Layer: 8x Spine switches with 64x400G ports (Core-64x400G model)
+2. Access Layer: 16x Leaf switches with 32x200G downlinks and 8x400G uplinks
+3. Transceivers: 
+   - Server connections: QSFP56-DD-DR4 200G transceivers with MPO-12 connectors
+   - Leaf-to-Spine: OSFP-400G-FR4 for the 400G uplinks
+   
+This design provides:
+- Full bisection bandwidth of 12.8 Tbps
+- Expected worst-case latency of <1μs between any two nodes
+- N+1 redundancy at the spine layer
+- Support for GPUDirect RDMA across the fabric
+
+Would you like me to provide a more detailed breakdown of component selection and topology verification?
+                                        </div>
+                                        <div class="message user-message">
+                                            We're experiencing intermittent packet loss on our east-west traffic between racks 12 and 14. The errors started yesterday after we installed new transceivers.
+                                        </div>
+                                        <div class="message agent-message">
+                                            Based on your description, I've analyzed several potential causes for the intermittent packet loss:
+
+1. Most likely cause (89% confidence): Power margin issues with the new transceivers
+   - The QSFP28-100G-LR4 transceivers installed have a typical TX power of 0.5 dBm
+   - Your fiber run between racks 12 and 14 is approximately 85m
+   - There are 3 patch panels in the path, adding approximately 1.2 dB of insertion loss
+   - This puts your power margin at only 2.1 dB, which is below the recommended 3.0 dB
+
+Recommendations:
+1. Replace with higher power transceivers (QSFP28-100G-ER4L) with +3.0 dBm output
+2. Clean all fiber connections to minimize insertion loss
+3. Consider testing with a direct fiber run to verify the issue
+
+Would you like me to simulate the power budget with alternative transceiver types or provide more detailed troubleshooting steps?
+                                        </div>
+                                        <div class="message user-message">
+                                            Our datacenter PUE is increasing. Can you optimize our current network design to reduce power consumption?
+                                        </div>
+                                        <div class="message agent-message">
+                                            I've analyzed your current network design and identified several optimization opportunities that could reduce power consumption by approximately 31% while maintaining performance:
+
+1. Transceiver Upgrades (18% savings):
+   - Replace QSFP28-100G-LR4 transceivers with Silicon Photonics-based 100G-LR4 models
+   - These consume 2.8W vs. 3.5W and have similar performance characteristics
+   - Total savings: 4,200W across 6,000 transceivers
+
+2. Switch Power Management (9% savings):
+   - Enable Energy Efficient Ethernet (EEE) on access switches
+   - Implement port power-down on the 842 unused ports identified
+   - Schedule downlink rate adjustments during off-peak hours (midnight-6am)
+
+3. Topology Adjustments (4% savings):
+   - Consolidate east zone leaf switches from 12 to 10 switches based on current utilization
+   - Adjust oversubscription ratio to 3:1 on development network segments
+
+I've modeled the impact on latency and throughput, and all changes maintain SLA requirements while reducing power consumption from 145 kW to 100 kW for the networking equipment.
+                                        </div>
+                                    </div>
+                                    <div class="chat-input">
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="message-input" placeholder="Ask about network design, component selection, or troubleshooting...">
+                                            <button class="btn btn-primary" id="send-button">
+                                                <i class="bi bi-send"></i> Send
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-5">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Network Visualization</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="visualization-container" id="network-visualization">
+                                    <!-- Network visualization will be rendered here -->
+                                    <div class="text-center mt-5 text-muted">
+                                        <i class="bi bi-diagram-3 fs-1"></i>
+                                        <p>Network visualization will appear here</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Network Metrics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Topology</label>
+                                            <h6>Leaf-Spine</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Switch Count</label>
+                                            <h6>12 (4 spine, 8 leaf)</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Server Count</label>
+                                            <h6>256</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Bisection Bandwidth</label>
+                                            <h6>25.6 Tbps</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Power Consumption</label>
+                                            <h6>18.5 kW</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Reliability Score</label>
+                                            <h6>0.9945 (High)</h6>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script>
+        // WebSocket connection for real-time AI assistance
+        let socket;
+        let currentAgent = "design_assistant";
+        
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            socket = new WebSocket(wsUrl);
+            
+            socket.onopen = function(e) {
+                console.log("WebSocket connection established");
+            };
+            
+            socket.onmessage = function(event) {
+                const response = JSON.parse(event.data);
+                displayMessage(response.response, 'agent');
+            };
+            
+            socket.onclose = function(event) {
+                console.log("WebSocket connection closed");
+                // Try to reconnect in 3 seconds
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            socket.onerror = function(error) {
+                console.error("WebSocket error:", error);
+            };
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (message && socket && socket.readyState === WebSocket.OPEN) {
+                displayMessage(message, 'user');
+                
+                // Send message to server
+                socket.send(JSON.stringify({
+                    agent_id: currentAgent,
+                    query: message
+                }));
+                
+                // Clear input
+                input.value = '';
+            }
+        }
+        
+        function displayMessage(message, sender) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageElement = document.createElement('div');
+            
+            messageElement.classList.add('message');
+            messageElement.classList.add(sender === 'user' ? 'user-message' : 'agent-message');
+            messageElement.textContent = message;
+            
+            chatMessages.appendChild(messageElement);
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Set up event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Connect WebSocket
+            connectWebSocket();
+            
+            // Send button click
+            document.getElementById('send-button').addEventListener('click', sendMessage);
+            
+            // Enter key press in input
+            document.getElementById('message-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            // Agent selection
+            document.querySelectorAll('.agent-badge').forEach(badge => {
+                badge.addEventListener('click', function() {
+                    // Update active agent
+                    currentAgent = this.dataset.agent;
+                    
+                    // Update UI
+                    document.querySelectorAll('.agent-badge').forEach(b => {
+                        b.classList.remove('active-agent');
+                        b.classList.remove('text-bg-primary');
+                        b.classList.add('text-bg-secondary');
+                    });
+                    
+                    this.classList.add('active-agent');
+                    this.classList.add('text-bg-primary');
+                    this.classList.remove('text-bg-secondary');
+                    
+                    // Notify user of agent change
+                    displayMessage(`Switched to ${this.textContent.trim()} agent. How can I help you?`, 'agent');
+                });
+            });
+        });
+    </script>
+</body>
+</html>

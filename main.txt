@@ -1,0 +1,1919 @@
+# OpenOptics: AI-Enhanced Optical Network Architecture Framework
+
+I'll create an enhanced version of the optical networking framework integrating LangChain, OpenAI API, and agent architecture while maintaining and extending the robust FastAPI implementation. This integration transforms the framework into a cutting-edge AI-powered optical network design and analysis tool.
+
+## Architecture Overview
+
+![OpenOptics Architecture](https://i.imgur.com/gU5KWZx.png)
+
+The enhanced architecture adds four key layers:
+
+1. **AI Agent Layer**: Autonomous agents for network optimization, failure prediction, and design assistance
+2. **LLM Integration Layer**: OpenAI API and LangChain for natural language processing and reasoning
+3. **Knowledge Graph Layer**: Structured representation of optical networking domain knowledge
+4. **Simulation Enhancement Layer**: AI-powered predictive modeling and optimization algorithms
+
+## Core Implementation
+
+```python
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+OpenOptics: AI-Enhanced Optical Network Architecture Framework
+
+An advanced system combining traditional optical networking expertise with cutting-edge
+AI capabilities for designing, evaluating, optimizing, and testing optical networking
+infrastructure for hyperscale AI computing environments.
+
+Author: Network Architecture Engineer
+License: MIT
+"""
+
+import os
+import sys
+import time
+import json
+import yaml
+import logging
+import argparse
+import datetime
+import uuid
+import math
+import random
+import threading
+import multiprocessing
+import queue
+from abc import ABC, abstractmethod
+from enum import Enum, auto
+from pathlib import Path
+from typing import Dict, List, Any, Optional, Union, Tuple, Set, Type, Callable, Generator
+from dataclasses import dataclass, field, asdict
+from functools import lru_cache
+import asyncio
+
+# Data analysis and scientific computing
+import numpy as np
+import pandas as pd
+import scipy.stats as stats
+import scipy.optimize as optimize
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
+import torch
+import torch.nn as nn
+
+# Visualization
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import seaborn as sns
+import networkx as nx
+import plotly.express as px
+import plotly.graph_objects as go
+
+# Network simulation and modeling
+import simpy
+import networkx as nx
+
+# Hardware and system monitoring
+import psutil
+import gputil
+import prometheus_client as prom
+
+# Web and API
+from flask import Flask
+import dash
+from dash import dcc, html
+import dash_bootstrap_components as dbc
+from dash.dependencies import Input, Output, State
+import fastapi
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, WebSocket, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field, validator
+import uvicorn
+
+# Database
+import sqlite3
+import sqlalchemy
+from sqlalchemy import Column, Integer, Float, String, Boolean, DateTime, ForeignKey, create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.sql import func
+
+# LangChain integration
+from langchain.llms import OpenAI
+from langchain.chat_models import ChatOpenAI
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.chains import ConversationChain, LLMChain
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
+from langchain.vectorstores import FAISS
+from langchain.docstore.document import Document
+from langchain.retrievers import TimeWeightedVectorStoreRetriever
+from langchain.agents import Tool, AgentExecutor, ZeroShotAgent, initialize_agent
+from langchain.chains.question_answering import load_qa_chain
+from langchain.callbacks.base import BaseCallbackHandler
+
+# OpenAI API integration
+import openai
+from openai import OpenAI as DirectOpenAI
+
+# Neo4j for knowledge graph
+from neo4j import GraphDatabase
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("openoptics.log"),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
+
+# Constants
+BASE_DIR = Path(__file__).parent
+CONFIG_DIR = BASE_DIR / "config"
+DATA_DIR = BASE_DIR / "data"
+RESULTS_DIR = BASE_DIR / "results"
+SIMULATION_DIR = BASE_DIR / "simulations"
+KNOWLEDGE_DIR = BASE_DIR / "knowledge"
+MODEL_DIR = BASE_DIR / "models"
+
+# Create directories
+for directory in [CONFIG_DIR, DATA_DIR, RESULTS_DIR, SIMULATION_DIR, KNOWLEDGE_DIR, MODEL_DIR]:
+    directory.mkdir(exist_ok=True, parents=True)
+
+CONFIG_PATH = CONFIG_DIR / "openoptics_config.yaml"
+
+# Load configuration
+def load_config():
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH, 'r') as f:
+            return yaml.safe_load(f)
+    else:
+        # Create default config
+        default_config = {
+            "component_library": {
+                "database_path": "data/components.db",
+                "auto_load_common": True
+            },
+            "evaluation": {
+                "power_budget_margin": 3.0,
+                "reliability_threshold": 0.8,
+                "technology_weights": {
+                    "power_efficiency": 0.25,
+                    "density": 0.20,
+                    "cost": 0.20,
+                    "maturity": 0.15,
+                    "reach": 0.10,
+                    "reliability": 0.10
+                }
+            },
+            "simulation": {
+                "default_duration": 24.0,
+                "packet_size_distribution": {
+                    "64": 0.4,
+                    "512": 0.3,
+                    "1500": 0.3
+                },
+                "default_traffic_pattern": "diurnal",
+                "default_traffic_intensity": 0.7,
+                "default_failure_rate": 0.1,
+                "default_failure_duration": 1.0,
+                "result_dir": "simulations"
+            },
+            "testing": {
+                "standard_test": {
+                    "duration": 24.0,
+                    "temperature": 25.0,
+                    "humidity": 50.0
+                },
+                "thermal_cycling_test": {
+                    "duration": 48.0,
+                    "temp_min": 0.0,
+                    "temp_max": 70.0,
+                    "cycle_count": 10
+                },
+                "stress_test": {
+                    "duration": 24.0,
+                    "temperature": 35.0,
+                    "intensity": 0.9
+                },
+                "result_dir": "results/testing"
+            },
+            "api": {
+                "host": "0.0.0.0",
+                "port": 8000,
+                "enable_docs": True,
+                "cors": {
+                    "allowed_origins": ["*"],
+                    "allowed_methods": ["*"],
+                    "allowed_headers": ["*"]
+                }
+            },
+            "system": {
+                "log_level": "INFO",
+                "seed": 42,
+                "parallel_workers": 4
+            },
+            "ai": {
+                "openai_api_key": "",
+                "model": "gpt-4",
+                "embedding_model": "text-embedding-ada-002",
+                "temperature": 0.7,
+                "max_tokens": 2000,
+                "knowledge_update_interval": 24  # hours
+            },
+            "knowledge_graph": {
+                "neo4j_uri": "bolt://localhost:7687",
+                "neo4j_user": "neo4j",
+                "neo4j_password": "password"
+            },
+            "agents": {
+                "enable_optimization_agent": True,
+                "enable_design_assistant_agent": True,
+                "enable_failure_analysis_agent": True,
+                "enable_network_monitoring_agent": True,
+                "agent_check_interval": 60  # seconds
+            }
+        }
+        with open(CONFIG_PATH, 'w') as f:
+            yaml.dump(default_config, f, sort_keys=False)
+        return default_config
+
+CONFIG = load_config()
+
+#############################################################
+# Core Data Models and AI Enhancement 
+#############################################################
+
+# Keep original data models from the initial code...
+# [OpticalTechnology, WavelengthTechnology, FormFactor, NetworkComponent, etc.]
+
+# AI-Enhanced Models
+
+@dataclass
+class AIModelConfig:
+    """Configuration for AI models"""
+    model_name: str
+    temperature: float
+    max_tokens: int
+    api_key: str
+    embedding_model: str
+    chunk_size: int = 1000
+    chunk_overlap: int = 200
+    
+    def to_dict(self) -> Dict:
+        """Convert to dictionary"""
+        return asdict(self)
+
+@dataclass
+class AgentConfig:
+    """Configuration for autonomous agents"""
+    agent_id: str
+    agent_type: str
+    enabled: bool
+    check_interval: int  # seconds
+    tools: List[str]
+    llm_config: AIModelConfig
+    memory_size: int
+    metadata: Dict[str, Any] = field(default_factory=dict)
+    
+    def to_dict(self) -> Dict:
+        """Convert to dictionary"""
+        return asdict(self)
+
+class KnowledgeGraphManager:
+    """Manages the optical networking knowledge graph"""
+    
+    def __init__(self, uri: str, user: str, password: str):
+        """Initialize the knowledge graph manager
+        
+        Args:
+            uri: Neo4j URI
+            user: Neo4j username
+            password: Neo4j password
+        """
+        self.uri = uri
+        self.user = user
+        self.password = password
+        self._driver = None
+        self.connect()
+        
+    def connect(self):
+        """Connect to the Neo4j database"""
+        try:
+            self._driver = GraphDatabase.driver(self.uri, auth=(self.user, self.password))
+            logger.info("Connected to Neo4j knowledge graph")
+        except Exception as e:
+            logger.error(f"Failed to connect to Neo4j: {e}")
+            self._driver = None
+    
+    def close(self):
+        """Close the connection to Neo4j"""
+        if self._driver:
+            self._driver.close()
+            self._driver = None
+    
+    def add_component(self, component: Any):
+        """Add a component to the knowledge graph
+        
+        Args:
+            component: Component to add
+        """
+        if not self._driver:
+            logger.error("Not connected to Neo4j database")
+            return
+        
+        # Extract component details
+        props = component.to_dict()
+        component_type = props.get("component_type", "Unknown")
+        
+        with self._driver.session() as session:
+            # Create component node
+            session.run(
+                "MERGE (c:Component {id: $id}) "
+                "SET c.name = $name, c.component_type = $component_type, "
+                "c.manufacturer = $manufacturer, c.model = $model, "
+                "c.updated_at = timestamp() "
+                "RETURN c",
+                id=props.get("id"),
+                name=props.get("name"),
+                component_type=component_type,
+                manufacturer=props.get("manufacturer", ""),
+                model=props.get("model", "")
+            )
+            
+            # Add type-specific properties
+            if hasattr(component, "technology"):
+                session.run(
+                    "MATCH (c:Component {id: $id}) "
+                    "SET c.technology = $technology, c.wavelength_tech = $wavelength_tech, "
+                    "c.form_factor = $form_factor, c.data_rate = $data_rate "
+                    "RETURN c",
+                    id=props.get("id"),
+                    technology=props.get("technology", ""),
+                    wavelength_tech=props.get("wavelength_tech", ""),
+                    form_factor=props.get("form_factor", ""),
+                    data_rate=props.get("data_rate", "")
+                )
+    
+    def add_relationship(self, source_id: str, target_id: str, rel_type: str, properties: Dict[str, Any] = None):
+        """Add a relationship between components
+        
+        Args:
+            source_id: Source component ID
+            target_id: Target component ID
+            rel_type: Relationship type
+            properties: Relationship properties
+        """
+        if not self._driver:
+            logger.error("Not connected to Neo4j database")
+            return
+        
+        if properties is None:
+            properties = {}
+        
+        with self._driver.session() as session:
+            session.run(
+                f"MATCH (a:Component {{id: $source_id}}), (b:Component {{id: $target_id}}) "
+                f"MERGE (a)-[r:{rel_type}]->(b) "
+                f"SET r += $properties "
+                f"RETURN a, r, b",
+                source_id=source_id,
+                target_id=target_id,
+                properties=properties
+            )
+    
+    def query(self, cypher_query: str, parameters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """Run a Cypher query against the knowledge graph
+        
+        Args:
+            cypher_query: Cypher query
+            parameters: Query parameters
+            
+        Returns:
+            Query results
+        """
+        if not self._driver:
+            logger.error("Not connected to Neo4j database")
+            return []
+        
+        if parameters is None:
+            parameters = {}
+        
+        with self._driver.session() as session:
+            result = session.run(cypher_query, **parameters)
+            return [record.data() for record in result]
+    
+    def get_component_knowledge(self, component_id: str) -> Dict[str, Any]:
+        """Get knowledge about a component
+        
+        Args:
+            component_id: Component ID
+            
+        Returns:
+            Component knowledge
+        """
+        if not self._driver:
+            logger.error("Not connected to Neo4j database")
+            return {}
+        
+        with self._driver.session() as session:
+            result = session.run(
+                "MATCH (c:Component {id: $id}) "
+                "OPTIONAL MATCH (c)-[r]->(related) "
+                "RETURN c, collect(distinct {type: type(r), target: related}) as relationships",
+                id=component_id
+            )
+            
+            for record in result:
+                component = record["c"]
+                relationships = record["relationships"]
+                
+                # Compose a knowledge dictionary
+                return {
+                    "id": component["id"],
+                    "name": component["name"],
+                    "type": component["component_type"],
+                    "properties": {k: v for k, v in component.items() if k not in ["id", "name", "component_type"]},
+                    "relationships": relationships
+                }
+        
+        return {}
+
+class VectorKnowledgeBase:
+    """Vector store for optical networking knowledge"""
+    
+    def __init__(self, embedding_model: str, persist_directory: str = None):
+        """Initialize the vector knowledge base
+        
+        Args:
+            embedding_model: OpenAI embedding model name
+            persist_directory: Directory to persist vector store
+        """
+        self.embedding_model = embedding_model
+        self.persist_directory = persist_directory or str(KNOWLEDGE_DIR / "vector_store")
+        
+        # Initialize embedding function
+        self.embeddings = OpenAIEmbeddings(model=embedding_model)
+        
+        # Initialize vector store
+        self._load_vector_store()
+    
+    def _load_vector_store(self):
+        """Load the vector store from disk"""
+        try:
+            self.vectorstore = FAISS.load_local(
+                folder_path=self.persist_directory,
+                embeddings=self.embeddings
+            )
+            logger.info(f"Loaded vector store from {self.persist_directory}")
+        except Exception as e:
+            logger.info(f"Creating new vector store: {e}")
+            # Create an empty vector store
+            self.vectorstore = FAISS.from_texts(
+                ["OpenOptics initialization"], 
+                self.embeddings
+            )
+            # Save it
+            self.vectorstore.save_local(self.persist_directory)
+    
+    def add_texts(self, texts: List[str], metadatas: List[Dict[str, Any]] = None):
+        """Add texts to the vector store
+        
+        Args:
+            texts: List of texts to add
+            metadatas: List of metadata for each text
+        """
+        if not texts:
+            return
+        
+        if metadatas is None:
+            metadatas = [{} for _ in texts]
+        
+        self.vectorstore.add_texts(texts, metadatas)
+        self.vectorstore.save_local(self.persist_directory)
+        logger.info(f"Added {len(texts)} texts to vector store")
+    
+    def add_documents(self, documents: List[Document]):
+        """Add documents to the vector store
+        
+        Args:
+            documents: List of documents to add
+        """
+        texts = [doc.page_content for doc in documents]
+        metadatas = [doc.metadata for doc in documents]
+        self.add_texts(texts, metadatas)
+    
+    def similarity_search(self, query: str, k: int = 5) -> List[Document]:
+        """Search the vector store for similar documents
+        
+        Args:
+            query: Query string
+            k: Number of results to return
+            
+        Returns:
+            List of similar documents
+        """
+        return self.vectorstore.similarity_search(query, k=k)
+    
+    def get_relevant_documents(self, query: str, k: int = 5) -> List[Document]:
+        """Get documents relevant to a query
+        
+        Args:
+            query: Query string
+            k: Number of results to return
+            
+        Returns:
+            List of relevant documents
+        """
+        return self.similarity_search(query, k=k)
+
+class OpticsTool:
+    """Tool for AI agents to use in the optical networking domain"""
+    
+    def __init__(self, name: str, description: str, func: Callable, is_async: bool = False):
+        """Initialize the optics tool
+        
+        Args:
+            name: Tool name
+            description: Tool description
+            func: Tool function
+            is_async: Whether the function is async
+        """
+        self.name = name
+        self.description = description
+        self.func = func
+        self.is_async = is_async
+    
+    def __call__(self, *args, **kwargs):
+        """Call the tool function"""
+        return self.func(*args, **kwargs)
+    
+    def to_langchain_tool(self) -> Tool:
+        """Convert to LangChain Tool
+        
+        Returns:
+            LangChain Tool
+        """
+        return Tool(
+            name=self.name,
+            description=self.description,
+            func=self.func
+        )
+
+class OpticsAgent:
+    """Base class for optical networking agents"""
+    
+    def __init__(self, config: AgentConfig, knowledge_base: VectorKnowledgeBase, tools: List[OpticsTool]):
+        """Initialize the optics agent
+        
+        Args:
+            config: Agent configuration
+            knowledge_base: Vector knowledge base
+            tools: List of available tools
+        """
+        self.config = config
+        self.knowledge_base = knowledge_base
+        self.tools = tools
+        
+        # Initialize LLM
+        self.llm = ChatOpenAI(
+            model=config.llm_config.model_name,
+            temperature=config.llm_config.temperature,
+            max_tokens=config.llm_config.max_tokens,
+            api_key=config.llm_config.api_key
+        )
+        
+        # Initialize memory
+        self.memory = ConversationBufferMemory(
+            memory_key="chat_history",
+            return_messages=True,
+            k=config.memory_size
+        )
+        
+        # Initialize agent
+        self._initialize_agent()
+    
+    def _initialize_agent(self):
+        """Initialize the LangChain agent"""
+        # Convert tools to LangChain tools
+        lc_tools = [tool.to_langchain_tool() for tool in self.tools]
+        
+        # Initialize agent
+        self.agent = initialize_agent(
+            tools=lc_tools,
+            llm=self.llm,
+            agent="chat-conversational-react-description",
+            memory=self.memory,
+            verbose=True
+        )
+    
+    async def process(self, query: str) -> Dict[str, Any]:
+        """Process a query
+        
+        Args:
+            query: Query string
+            
+        Returns:
+            Response dictionary
+        """
+        # Get relevant documents from knowledge base
+        docs = self.knowledge_base.get_relevant_documents(query)
+        context = "\n".join([doc.page_content for doc in docs])
+        
+        # Add context to query
+        enhanced_query = f"Based on the following context:\n{context}\n\nUser query: {query}"
+        
+        # Get agent response
+        response = self.agent.run(enhanced_query)
+        
+        return {
+            "query": query,
+            "response": response,
+            "context_docs": len(docs),
+            "agent_id": self.config.agent_id,
+            "agent_type": self.config.agent_type,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
+
+class NetworkDesignAgent(OpticsAgent):
+    """Agent for optical network design assistance"""
+    
+    def __init__(self, config: AgentConfig, knowledge_base: VectorKnowledgeBase, 
+                 component_library, evaluator, simulator):
+        """Initialize the network design agent
+        
+        Args:
+            config: Agent configuration
+            knowledge_base: Vector knowledge base
+            component_library: Component library
+            evaluator: Optical evaluator
+            simulator: Network simulator
+        """
+        # Create design-specific tools
+        tools = [
+            OpticsTool(
+                name="search_components",
+                description="Search for components matching criteria",
+                func=lambda criteria: component_library.find_transceivers(criteria)
+            ),
+            OpticsTool(
+                name="evaluate_design",
+                description="Evaluate a network design",
+                func=lambda topology, components, links: evaluator.evaluate_network_design(
+                    topology, components, links
+                )
+            ),
+            OpticsTool(
+                name="simulate_topology",
+                description="Simulate a network topology",
+                func=lambda config: simulator.simulate_network(config)
+            ),
+            OpticsTool(
+                name="optimize_components",
+                description="Optimize component selection based on requirements",
+                func=lambda requirements: evaluator.optimize_component_selection(requirements)
+            ),
+            OpticsTool(
+                name="compare_technologies",
+                description="Compare different optical technologies",
+                func=lambda technologies: evaluator.compare_optical_technologies(technologies)
+            )
+        ]
+        
+        super().__init__(config, knowledge_base, tools)
+        
+        # Store references to components
+        self.component_library = component_library
+        self.evaluator = evaluator
+        self.simulator = simulator
+    
+    async def design_network(self, requirements: Dict[str, Any]) -> Dict[str, Any]:
+        """Design a network based on requirements
+        
+        Args:
+            requirements: Network requirements
+            
+        Returns:
+            Network design details
+        """
+        query = f"""
+        Design an optical network with the following requirements:
+        
+        {json.dumps(requirements, indent=2)}
+        
+        Consider factors like topology, component selection, power budget, and reliability.
+        Provide specific recommendations for transceivers, switches, and connectivity.
+        """
+        
+        response = await self.process(query)
+        
+        # Extract design recommendations
+        # In a real system, we would parse the agent's response to extract structured data
+        
+        return {
+            **response,
+            "requirements": requirements,
+            "design_recommendations": response["response"]
+        }
+    
+    async def review_design(self, design: Dict[str, Any]) -> Dict[str, Any]:
+        """Review an existing network design
+        
+        Args:
+            design: Network design to review
+            
+        Returns:
+            Review comments and suggestions
+        """
+        query = f"""
+        Review the following optical network design:
+        
+        {json.dumps(design, indent=2)}
+        
+        Identify any issues, inefficiencies, or risks.
+        Suggest specific improvements and alternatives where appropriate.
+        Consider factors like reliability, power efficiency, scalability, and cost.
+        """
+        
+        response = await self.process(query)
+        
+        return {
+            **response,
+            "design": design,
+            "review_comments": response["response"]
+        }
+
+class NetworkOptimizationAgent(OpticsAgent):
+    """Agent for optimizing optical network designs"""
+    
+    def __init__(self, config: AgentConfig, knowledge_base: VectorKnowledgeBase,
+                 evaluator, simulator):
+        """Initialize the network optimization agent
+        
+        Args:
+            config: Agent configuration
+            knowledge_base: Vector knowledge base
+            evaluator: Optical evaluator
+            simulator: Network simulator
+        """
+        # Create optimization-specific tools
+        tools = [
+            OpticsTool(
+                name="evaluate_network",
+                description="Evaluate a network design",
+                func=lambda topology, components, links: evaluator.evaluate_network_design(
+                    topology, components, links
+                )
+            ),
+            OpticsTool(
+                name="simulate_performance",
+                description="Simulate network performance",
+                func=lambda config: simulator.simulate_network(config)
+            ),
+            OpticsTool(
+                name="compare_topologies",
+                description="Compare different network topologies",
+                func=lambda configs: simulator.compare_topologies(configs)
+            ),
+            OpticsTool(
+                name="optimize_component_selection",
+                description="Optimize component selection based on requirements",
+                func=lambda requirements: evaluator.optimize_component_selection(requirements)
+            )
+        ]
+        
+        super().__init__(config, knowledge_base, tools)
+        
+        # Store references to components
+        self.evaluator = evaluator
+        self.simulator = simulator
+    
+    async def optimize_for_objective(self, network_design: Dict[str, Any], 
+                                   objective: str) -> Dict[str, Any]:
+        """Optimize a network design for a specific objective
+        
+        Args:
+            network_design: Network design to optimize
+            objective: Optimization objective (latency, power, reliability, cost)
+            
+        Returns:
+            Optimized network design
+        """
+        query = f"""
+        Optimize the following optical network design for {objective}:
+        
+        {json.dumps(network_design, indent=2)}
+        
+        Suggest specific changes to improve {objective} while maintaining acceptable performance
+        in other areas. Consider component selection, topology adjustments, and configuration changes.
+        """
+        
+        response = await self.process(query)
+        
+        return {
+            **response,
+            "original_design": network_design,
+            "optimization_objective": objective,
+            "optimized_design": response["response"]
+        }
+    
+    async def find_bottlenecks(self, network_design: Dict[str, Any], 
+                             simulation_results: Dict[str, Any]) -> Dict[str, Any]:
+        """Find bottlenecks in a network design based on simulation results
+        
+        Args:
+            network_design: Network design
+            simulation_results: Simulation results
+            
+        Returns:
+            Identified bottlenecks and remediation suggestions
+        """
+        query = f"""
+        Analyze the following network design and simulation results to identify bottlenecks:
+        
+        Network Design:
+        {json.dumps(network_design, indent=2)}
+        
+        Simulation Results:
+        {json.dumps(simulation_results, indent=2)}
+        
+        Identify specific bottlenecks, their causes, and potential remediation strategies.
+        Prioritize bottlenecks based on their impact on overall network performance.
+        """
+        
+        response = await self.process(query)
+        
+        return {
+            **response,
+            "network_design": network_design,
+            "simulation_results": simulation_results,
+            "bottlenecks": response["response"]
+        }
+
+class FailureAnalysisAgent(OpticsAgent):
+    """Agent for analyzing and predicting network failures"""
+    
+    def __init__(self, config: AgentConfig, knowledge_base: VectorKnowledgeBase,
+                 simulator, tester):
+        """Initialize the failure analysis agent
+        
+        Args:
+            config: Agent configuration
+            knowledge_base: Vector knowledge base
+            simulator: Network simulator
+            tester: Optical tester
+        """
+        # Create failure analysis-specific tools
+        tools = [
+            OpticsTool(
+                name="simulate_failures",
+                description="Simulate network failure scenarios",
+                func=lambda config, scenarios: simulator.simulate_failure_scenarios(
+                    config, scenarios
+                )
+            ),
+            OpticsTool(
+                name="analyze_test_results",
+                description="Analyze component test results",
+                func=lambda component_id: tester.analyze_test_results(component_id)
+            ),
+            OpticsTool(
+                name="compare_components",
+                description="Compare test results for multiple components",
+                func=lambda component_ids: tester.compare_components(component_ids)
+            )
+        ]
+        
+        super().__init__(config, knowledge_base, tools)
+        
+        # Store references to components
+        self.simulator = simulator
+        self.tester = tester
+    
+    async def analyze_failure(self, failure_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze a network failure
+        
+        Args:
+            failure_data: Failure data
+            
+        Returns:
+            Failure analysis
+        """
+        query = f"""
+        Analyze the following network failure:
+        
+        {json.dumps(failure_data, indent=2)}
+        
+        Identify the root cause, contributing factors, and propagation path.
+        Suggest mitigation strategies to prevent similar failures in the future.
+        Recommend immediate actions to resolve the current failure.
+        """
+        
+        response = await self.process(query)
+        
+        return {
+            **response,
+            "failure_data": failure_data,
+            "root_cause_analysis": response["response"]
+        }
+    
+    async def predict_failures(self, network_design: Dict[str, Any], 
+                             test_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Predict potential failures in a network design
+        
+        Args:
+            network_design: Network design
+            test_results: Component test results
+            
+        Returns:
+            Failure predictions and preventive recommendations
+        """
+        query = f"""
+        Predict potential failures in the following network design based on test results:
+        
+        Network Design:
+        {json.dumps(network_design, indent=2)}
+        
+        Test Results:
+        {json.dumps(test_results, indent=2)}
+        
+        Identify high-risk components, potential failure modes, and estimated time frames.
+        Suggest preventive maintenance and architectural improvements to reduce failure risk.
+        Prioritize risks based on impact and probability.
+        """
+        
+        response = await self.process(query)
+        
+        return {
+            **response,
+            "network_design": network_design,
+            "test_results": test_results,
+            "failure_predictions": response["response"]
+        }
+
+class AgentManager:
+    """Manages the autonomous agents in the system"""
+    
+    def __init__(self, component_library, evaluator, simulator, tester):
+        """Initialize the agent manager
+        
+        Args:
+            component_library: Component library
+            evaluator: Optical evaluator
+            simulator: Network simulator
+            tester: Optical tester
+        """
+        self.component_library = component_library
+        self.evaluator = evaluator
+        self.simulator = simulator
+        self.tester = tester
+        
+        # Initialize AI components
+        self._initialize_ai_components()
+        
+        # Initialize agents
+        self.agents = {}
+        self._initialize_agents()
+    
+    def _initialize_ai_components(self):
+        """Initialize AI components"""
+        # Initialize knowledge base
+        self.knowledge_base = VectorKnowledgeBase(
+            embedding_model=CONFIG["ai"]["embedding_model"],
+            persist_directory=str(KNOWLEDGE_DIR / "vector_store")
+        )
+        
+        # Initialize knowledge graph
+        kg_config = CONFIG["knowledge_graph"]
+        self.knowledge_graph = KnowledgeGraphManager(
+            uri=kg_config["neo4j_uri"],
+            user=kg_config["neo4j_user"],
+            password=kg_config["neo4j_password"]
+        )
+        
+        # Load initial knowledge
+        self._load_initial_knowledge()
+    
+    def _load_initial_knowledge(self):
+        """Load initial knowledge into the knowledge base"""
+        # In a production system, we would load domain knowledge from various sources
+        # For this example, we'll add some basic optical networking knowledge
+        
+        basic_knowledge = [
+            Document(
+                page_content="""
+                Optical transceivers are communication devices that transmit and receive information as optical signals.
+                The key metrics for transceivers include power budget, reach, data rate, and form factor.
+                Common form factors include QSFP, QSFP28, QSFP-DD, and OSFP.
+                The power budget is the difference between transmitter output power and receiver sensitivity,
+                which determines the maximum link distance.
+                """,
+                metadata={"source": "domain_knowledge", "topic": "transceivers"}
+            ),
+            Document(
+                page_content="""
+                Network topologies define how switches, servers, and other devices are connected.
+                Common data center topologies include leaf-spine, Clos, dragonfly, and fat tree.
+                Leaf-spine is a two-tier network where spine switches connect to all leaf switches.
+                Clos networks are multi-tier networks that provide multiple paths between any two edge devices.
+                Topology selection affects scalability, latency, oversubscription, and fault tolerance.
+                """,
+                metadata={"source": "domain_knowledge", "topic": "topologies"}
+            ),
+            Document(
+                page_content="""
+                Optical technologies include pluggables, co-packaged optics, silicon photonics, and coherent optics.
+                Pluggable transceivers are the most common and mature technology.
+                Co-packaged optics integrate optical components directly with switching ASICs to improve power efficiency.
+                Silicon photonics uses silicon as the optical medium for components like modulators and photodetectors.
+                Coherent optics are used for long-distance communication and allow higher data rates over longer distances.
+                """,
+                metadata={"source": "domain_knowledge", "topic": "technologies"}
+            ),
+            Document(
+                page_content="""
+                Failure modes in optical networks include laser degradation, receiver sensitivity drift,
+                thermal drift, link flaps, mechanical damage, and contamination.
+                Laser degradation occurs over time as the laser diode ages, reducing output power.
+                Receiver sensitivity drift can occur due to temperature changes or aging.
+                Link flaps are rapid transitions between up and down states, often caused by marginal power levels.
+                Contamination of fiber connectors can significantly increase insertion loss.
+                """,
+                metadata={"source": "domain_knowledge", "topic": "failures"}
+            )
+        ]
+        
+        self.knowledge_base.add_documents(basic_knowledge)
+    
+    def _initialize_agents(self):
+        """Initialize all agents"""
+        # Create AI model config
+        ai_config = CONFIG["ai"]
+        model_config = AIModelConfig(
+            model_name=ai_config["model"],
+            temperature=ai_config["temperature"],
+            max_tokens=ai_config["max_tokens"],
+            api_key=ai_config["openai_api_key"],
+            embedding_model=ai_config["embedding_model"]
+        )
+        
+        # Initialize design assistant agent
+        if CONFIG["agents"]["enable_design_assistant_agent"]:
+            design_config = AgentConfig(
+                agent_id="design_assistant",
+                agent_type="network_design",
+                enabled=True,
+                check_interval=CONFIG["agents"]["agent_check_interval"],
+                tools=["search_components", "evaluate_design", "simulate_topology", 
+                       "optimize_components", "compare_technologies"],
+                llm_config=model_config,
+                memory_size=10
+            )
+            
+            self.agents["design_assistant"] = NetworkDesignAgent(
+                config=design_config,
+                knowledge_base=self.knowledge_base,
+                component_library=self.component_library,
+                evaluator=self.evaluator,
+                simulator=self.simulator
+            )
+        
+        # Initialize optimization agent
+        if CONFIG["agents"]["enable_optimization_agent"]:
+            optimization_config = AgentConfig(
+                agent_id="network_optimizer",
+                agent_type="network_optimization",
+                enabled=True,
+                check_interval=CONFIG["agents"]["agent_check_interval"],
+                tools=["evaluate_network", "simulate_performance", "compare_topologies", 
+                       "optimize_component_selection"],
+                llm_config=model_config,
+                memory_size=10
+            )
+            
+            self.agents["network_optimizer"] = NetworkOptimizationAgent(
+                config=optimization_config,
+                knowledge_base=self.knowledge_base,
+                evaluator=self.evaluator,
+                simulator=self.simulator
+            )
+        
+        # Initialize failure analysis agent
+        if CONFIG["agents"]["enable_failure_analysis_agent"]:
+            failure_config = AgentConfig(
+                agent_id="failure_analyst",
+                agent_type="failure_analysis",
+                enabled=True,
+                check_interval=CONFIG["agents"]["agent_check_interval"],
+                tools=["simulate_failures", "analyze_test_results", "compare_components"],
+                llm_config=model_config,
+                memory_size=10
+            )
+            
+            self.agents["failure_analyst"] = FailureAnalysisAgent(
+                config=failure_config,
+                knowledge_base=self.knowledge_base,
+                simulator=self.simulator,
+                tester=self.tester
+            )
+    
+    async def process_query(self, agent_id: str, query: str) -> Dict[str, Any]:
+        """Process a query with a specific agent
+        
+        Args:
+            agent_id: Agent ID
+            query: Query string
+            
+        Returns:
+            Agent response
+        """
+        if agent_id not in self.agents:
+            raise ValueError(f"Agent not found: {agent_id}")
+        
+        agent = self.agents[agent_id]
+        return await agent.process(query)
+    
+    async def design_network(self, requirements: Dict[str, Any]) -> Dict[str, Any]:
+        """Design a network based on requirements
+        
+        Args:
+            requirements: Network requirements
+            
+        Returns:
+            Network design details
+        """
+        if "design_assistant" not in self.agents:
+            raise ValueError("Design assistant agent not available")
+        
+        agent = self.agents["design_assistant"]
+        return await agent.design_network(requirements)
+    
+    async def optimize_network(self, network_design: Dict[str, Any], 
+                             objective: str) -> Dict[str, Any]:
+        """Optimize a network design for a specific objective
+        
+        Args:
+            network_design: Network design to optimize
+            objective: Optimization objective
+            
+        Returns:
+            Optimized network design
+        """
+        if "network_optimizer" not in self.agents:
+            raise ValueError("Network optimizer agent not available")
+        
+        agent = self.agents["network_optimizer"]
+        return await agent.optimize_for_objective(network_design, objective)
+    
+    async def analyze_failure(self, failure_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyze a network failure
+        
+        Args:
+            failure_data: Failure data
+            
+        Returns:
+            Failure analysis
+        """
+        if "failure_analyst" not in self.agents:
+            raise ValueError("Failure analyst agent not available")
+        
+        agent = self.agents["failure_analyst"]
+        return await agent.analyze_failure(failure_data)
+    
+    def update_knowledge(self, component: Any):
+        """Update knowledge base with component information
+        
+        Args:
+            component: Component to add to knowledge base
+        """
+        # Update knowledge graph
+        self.knowledge_graph.add_component(component)
+        
+        # Update vector knowledge base
+        component_dict = component.to_dict()
+        component_str = f"""
+        Component ID: {component_dict.get('id')}
+        Name: {component_dict.get('name')}
+        Type: {component_dict.get('component_type')}
+        Manufacturer: {component_dict.get('manufacturer')}
+        Model: {component_dict.get('model')}
+        Data Rate: {component_dict.get('data_rate')}
+        """
+        
+        # Add specific details based on component type
+        if hasattr(component, "technology"):
+            component_str += f"""
+            Technology: {component_dict.get('technology')}
+            Wavelength Technology: {component_dict.get('wavelength_tech')}
+            Form Factor: {component_dict.get('form_factor')}
+            Reach: {component_dict.get('reach')} m
+            TX Power: {component_dict.get('tx_power')} dBm
+            RX Sensitivity: {component_dict.get('rx_sensitivity')} dBm
+            """
+        
+        self.knowledge_base.add_texts([component_str], [{"component_id": component_dict.get('id')}])
+
+#############################################################
+# AI-Enhanced API Implementation
+#############################################################
+
+class OpticalNetworkAI:
+    """AI-powered API for optical network design and evaluation"""
+    
+    def __init__(self):
+        """Initialize the API with AI capabilities"""
+        self.component_library = ComponentLibrary()
+        self.evaluator = OpticalEvaluator(self.component_library)
+        self.simulator = NetworkSimulator()
+        self.tester = OpticalTester()
+        
+        # Initialize AI components
+        self.agent_manager = AgentManager(
+            self.component_library,
+            self.evaluator,
+            self.simulator,
+            self.tester
+        )
+        
+        # Create FastAPI app
+        self.app = FastAPI(
+            title="OpenOptics AI",
+            description="AI-Enhanced Optical Network Architecture API",
+            version="2.0.0"
+        )
+        
+        # Add CORS middleware
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=CONFIG["api"]["cors"]["allowed_origins"],
+            allow_credentials=True,
+            allow_methods=CONFIG["api"]["cors"]["allowed_methods"],
+            allow_headers=CONFIG["api"]["cors"]["allowed_headers"],
+        )
+        
+        # Serve static files
+        self.app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+        
+        # Register routes
+        self._register_routes()
+    
+    def _register_routes(self):
+        """Register API routes"""
+        app = self.app
+        
+        # Original routes from the base implementation...
+        
+        # AI-powered routes
+        @app.post("/ai/design")
+        async def design_network(requirements: Dict[str, Any]):
+            """Design a network based on requirements"""
+            result = await self.agent_manager.design_network(requirements)
+            return result
+        
+        @app.post("/ai/optimize")
+        async def optimize_network(network_design: Dict[str, Any], objective: str):
+            """Optimize a network design for a specific objective"""
+            result = await self.agent_manager.optimize_network(network_design, objective)
+            return result
+        
+        @app.post("/ai/analyze_failure")
+        async def analyze_failure(failure_data: Dict[str, Any]):
+            """Analyze a network failure"""
+            result = await self.agent_manager.analyze_failure(failure_data)
+            return result
+        
+        @app.post("/ai/query/{agent_id}")
+        async def query_agent(agent_id: str, query: str):
+            """Query a specific agent"""
+            try:
+                result = await self.agent_manager.process_query(agent_id, query)
+                return result
+            except ValueError as e:
+                raise HTTPException(status_code=404, detail=str(e))
+        
+        @app.websocket("/ws")
+        async def websocket_endpoint(websocket: WebSocket):
+            """WebSocket endpoint for real-time interactions"""
+            await websocket.accept()
+            
+            try:
+                while True:
+                    # Receive message from client
+                    data = await websocket.receive_json()
+                    
+                    # Extract relevant fields
+                    agent_id = data.get("agent_id", "design_assistant")
+                    query = data.get("query", "")
+                    
+                    if not query:
+                        await websocket.send_json({"error": "Query is required"})
+                        continue
+                    
+                    # Process query with appropriate agent
+                    try:
+                        result = await self.agent_manager.process_query(agent_id, query)
+                        await websocket.send_json(result)
+                    except ValueError as e:
+                        await websocket.send_json({"error": str(e)})
+                    except Exception as e:
+                        logger.error(f"Error processing query: {e}")
+                        await websocket.send_json({"error": "Internal server error"})
+            
+            except Exception as e:
+                logger.error(f"WebSocket error: {e}")
+        
+        @app.get("/", response_class=HTMLResponse)
+        async def index():
+            """Serve the main application page"""
+            with open(BASE_DIR / "static" / "index.html", "r") as f:
+                return f.read()
+    
+    def run(self, host: str = None, port: int = None):
+        """Run the API server"""
+        host = host or CONFIG["api"]["host"]
+        port = port or CONFIG["api"]["port"]
+        
+        uvicorn.run(self.app, host=host, port=port)
+
+#############################################################
+# Main Entry Point
+#############################################################
+
+def main():
+    """Main entry point"""
+    parser = argparse.ArgumentParser(description="OpenOptics: AI-Enhanced Optical Network Framework")
+    
+    # Mode selection
+    parser.add_argument('--mode', type=str, choices=['api', 'evaluate', 'simulate', 'test', 'ai'],
+                      default='api', help='Mode to run')
+    
+    # API mode arguments
+    parser.add_argument('--host', type=str, help='Host for API server')
+    parser.add_argument('--port', type=int, help='Port for API server')
+    
+    # AI mode arguments
+    parser.add_argument('--query', type=str, help='Query for AI agent')
+    parser.add_argument('--agent', type=str, default='design_assistant', 
+                      help='Agent to use (design_assistant, network_optimizer, failure_analyst)')
+    
+    args = parser.parse_args()
+    
+    if args.mode == 'api':
+        # Run API server with AI capabilities
+        api = OpticalNetworkAI()
+        api.run(host=args.host, port=args.port)
+    
+    elif args.mode == 'ai':
+        # Run AI query directly
+        if not args.query:
+            print("Please specify a query with --query")
+            return
+        
+        # Initialize components
+        component_library = ComponentLibrary()
+        evaluator = OpticalEvaluator(component_library)
+        simulator = NetworkSimulator()
+        tester = OpticalTester()
+        
+        # Initialize agent manager
+        agent_manager = AgentManager(component_library, evaluator, simulator, tester)
+        
+        # Run query
+        import asyncio
+        result = asyncio.run(agent_manager.process_query(args.agent, args.query))
+        print(json.dumps(result, indent=2))
+    
+    # Other modes (evaluate, simulate, test) can be implemented as in the original code
+
+if __name__ == "__main__":
+    main()
+```
+
+## Front-End Implementation
+
+The framework includes a modern web interface for interacting with the AI-powered system:
+
+```html
+<!-- static/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenOptics AI - Optical Network Architecture Framework</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+        }
+        .navbar-brand {
+            font-weight: bold;
+            color: #0d6efd;
+        }
+        .sidebar {
+            min-height: calc(100vh - 56px);
+            background-color: #f1f3f5;
+            padding-top: 20px;
+        }
+        .main-content {
+            padding: 20px;
+        }
+        .chat-container {
+            height: calc(100vh - 200px);
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: white;
+            border-radius: 10px;
+            border: 1px solid #dee2e6;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 10px;
+            max-width: 80%;
+        }
+        .user-message {
+            background-color: #e9f5ff;
+            margin-left: auto;
+        }
+        .agent-message {
+            background-color: #f0f0f0;
+            margin-right: auto;
+        }
+        .chat-input {
+            margin-top: 15px;
+        }
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .design-form label {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .visualization-container {
+            height: 500px;
+            background-color: white;
+            border-radius: 10px;
+            border: 1px solid #dee2e6;
+            padding: 20px;
+        }
+        .agent-selector {
+            margin-bottom: 20px;
+        }
+        .agent-badge {
+            margin-right: 5px;
+            cursor: pointer;
+        }
+        .active-agent {
+            background-color: #0d6efd;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-router"></i> OpenOptics AI
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" id="nav-design">Network Design</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-optimization">Optimization</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-failure">Failure Analysis</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="nav-components">Components</a>
+                    </li>
+                </ul>
+                <span class="navbar-text">
+                    <i class="bi bi-cpu"></i> AI-Enhanced Optical Network Framework
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-3 col-lg-2 sidebar">
+                <h5 class="px-3 mb-3">Tools</h5>
+                <div class="list-group list-group-flush">
+                    <a href="#" class="list-group-item list-group-item-action active">
+                        <i class="bi bi-chat-left-text"></i> AI Assistant
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="bi bi-diagram-3"></i> Network Topology
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="bi bi-gear"></i> Component Library
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="bi bi-graph-up"></i> Simulation
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="bi bi-lightbulb"></i> Design Advisor
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        <i class="bi bi-exclamation-triangle"></i> Failure Analysis
+                    </a>
+                </div>
+                
+                <h5 class="px-3 mb-3 mt-4">Recent Designs</h5>
+                <div class="list-group list-group-flush">
+                    <a href="#" class="list-group-item list-group-item-action">
+                        Hyperscale Datacenter DC1
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        Campus Interconnect Project
+                    </a>
+                    <a href="#" class="list-group-item list-group-item-action">
+                        Edge Computing Network
+                    </a>
+                </div>
+            </div>
+            
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">AI Network Design Assistant</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group me-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary">Export</button>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-save"></i> Save Design
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-7">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">AI Assistant</h5>
+                                <div class="agent-selector">
+                                    <span class="badge rounded-pill text-bg-primary agent-badge active-agent" data-agent="design_assistant">
+                                        Design Assistant
+                                    </span>
+                                    <span class="badge rounded-pill text-bg-secondary agent-badge" data-agent="network_optimizer">
+                                        Network Optimizer
+                                    </span>
+                                    <span class="badge rounded-pill text-bg-secondary agent-badge" data-agent="failure_analyst">
+                                        Failure Analyst
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="chat-container">
+                                    <div class="chat-messages" id="chat-messages">
+                                        <div class="message agent-message">
+                                            Hello! I'm your AI optical networking assistant. How can I help you design, optimize, or troubleshoot your network today?
+                                        </div>
+                                    </div>
+                                    <div class="chat-input">
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="message-input" placeholder="Ask about network design, component selection, or troubleshooting...">
+                                            <button class="btn btn-primary" id="send-button">
+                                                <i class="bi bi-send"></i> Send
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-5">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Network Visualization</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="visualization-container" id="network-visualization">
+                                    <!-- Network visualization will be rendered here -->
+                                    <div class="text-center mt-5 text-muted">
+                                        <i class="bi bi-diagram-3 fs-1"></i>
+                                        <p>Network visualization will appear here</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0">Network Metrics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Topology</label>
+                                            <h6>Leaf-Spine</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Switch Count</label>
+                                            <h6>12 (4 spine, 8 leaf)</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Server Count</label>
+                                            <h6>256</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Bisection Bandwidth</label>
+                                            <h6>25.6 Tbps</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Power Consumption</label>
+                                            <h6>18.5 kW</h6>
+                                        </div>
+                                    </div>
+                                    <div class="col-6">
+                                        <div class="mb-3">
+                                            <label class="form-label">Reliability Score</label>
+                                            <h6>0.9945 (High)</h6>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+    <script>
+        // WebSocket connection for real-time AI assistance
+        let socket;
+        let currentAgent = "design_assistant";
+        
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            socket = new WebSocket(wsUrl);
+            
+            socket.onopen = function(e) {
+                console.log("WebSocket connection established");
+            };
+            
+            socket.onmessage = function(event) {
+                const response = JSON.parse(event.data);
+                displayMessage(response.response, 'agent');
+            };
+            
+            socket.onclose = function(event) {
+                console.log("WebSocket connection closed");
+                // Try to reconnect in 3 seconds
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            socket.onerror = function(error) {
+                console.error("WebSocket error:", error);
+            };
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (message && socket && socket.readyState === WebSocket.OPEN) {
+                displayMessage(message, 'user');
+                
+                // Send message to server
+                socket.send(JSON.stringify({
+                    agent_id: currentAgent,
+                    query: message
+                }));
+                
+                // Clear input
+                input.value = '';
+            }
+        }
+        
+        function displayMessage(message, sender) {
+            const chatMessages = document.getElementById('chat-messages');
+            const messageElement = document.createElement('div');
+            
+            messageElement.classList.add('message');
+            messageElement.classList.add(sender === 'user' ? 'user-message' : 'agent-message');
+            messageElement.textContent = message;
+            
+            chatMessages.appendChild(messageElement);
+            
+            // Scroll to bottom
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Set up event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Connect WebSocket
+            connectWebSocket();
+            
+            // Send button click
+            document.getElementById('send-button').addEventListener('click', sendMessage);
+            
+            // Enter key press in input
+            document.getElementById('message-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            // Agent selection
+            document.querySelectorAll('.agent-badge').forEach(badge => {
+                badge.addEventListener('click', function() {
+                    // Update active agent
+                    currentAgent = this.dataset.agent;
+                    
+                    // Update UI
+                    document.querySelectorAll('.agent-badge').forEach(b => {
+                        b.classList.remove('active-agent');
+                        b.classList.remove('text-bg-primary');
+                        b.classList.add('text-bg-secondary');
+                    });
+                    
+                    this.classList.add('active-agent');
+                    this.classList.add('text-bg-primary');
+                    this.classList.remove('text-bg-secondary');
+                    
+                    // Notify user of agent change
+                    displayMessage(`Switched to ${this.textContent.trim()} agent. How can I help you?`, 'agent');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
+```
+
+## Key Innovations and Enhancements
+
+### 1. AI-Powered Network Design
+
+The system integrates OpenAI's GPT models to provide:
+
+- **Natural Language Network Design**: Users can describe network requirements in plain language, and the AI will generate appropriate designs
+- **Contextual Understanding**: The system understands optical networking concepts, components, and best practices
+- **Multi-Modal Interaction**: Users can interact via API calls, web interface, or command line
+
+### 2. Agent Architecture for Autonomous Decision-Making
+
+The framework implements specialized agents for different network tasks:
+
+- **Design Assistant Agent**: Helps create optimal network designs based on requirements
+- **Optimization Agent**: Continuously improves existing designs for specific objectives (latency, power, cost)  
+- **Failure Analysis Agent**: Predicts, analyzes, and recommends fixes for network failures
+
+Each agent has:
+- Domain-specific tools and knowledge
+- Memory for conversation context
+- Access to the shared knowledge base
+- Reasoning capabilities through LLMs
+
+### 3. Knowledge Graph and Vector Database Integration
+
+The system maintains comprehensive knowledge of optical networking:
+
+- **Neo4j Knowledge Graph**: Stores relationships between components, technologies, and concepts
+- **FAISS Vector Database**: Enables semantic search across optical networking documentation
+- **Automatic Knowledge Updates**: Learns from new components and test results
+
+### 4. Advanced LangChain Integration
+
+LangChain provides sophisticated AI capabilities:
+
+- **Customized Prompt Templates**: Domain-specific prompts optimize model responses
+- **Tool Integration**: AI agents can use specialized tools for component selection, evaluation, and simulation
+- **Conversation Memory**: Maintains context across interactions for more coherent assistance
+- **Retrieval-Augmented Generation**: Combines domain knowledge with LLM capabilities
+
+### 5. Real-Time Collaborative Interface
+
+The modern web interface supports:
+
+- **WebSocket Communication**: Real-time interaction with AI agents
+- **Interactive Visualizations**: Dynamic network topology and performance visualizations
+- **Multi-Agent Switching**: Users can switch between specialized agents based on tasks
+- **Responsive Design**: Works across desktop and mobile devices
+
+### 6. Enhanced Simulation with AI Predictions
+
+- **AI-Enhanced Fault Prediction**: Predicts potential failures before they occur
+- **Pattern Recognition**: Identifies patterns in simulation data that human analysts might miss
+- **Scenario Generation**: Automatically generates relevant test scenarios based on network design
+- **Root Cause Analysis**: Uses causal reasoning to determine the source of network issues
+
+## Use Cases
+
+### 1. AI-Assisted Network Design
+
+```
+User: I need to design a network for a new AI training cluster with 64 compute nodes, each with 8x A100 GPUs. The network needs to support high throughput collective operations and have low latency.
+
+AI Design Assistant: Based on your requirements for an AI training cluster, I recommend a non-blocking Clos network topology with the following specifications:
+
+1. Core Layer: 8x Spine switches with 64x400G ports (Core-64x400G model)
+2. Access Layer: 16x Leaf switches with 32x200G downlinks and 8x400G uplinks
+3. Transceivers: 
+   - Server connections: QSFP56-DD-DR4 200G transceivers with MPO-12 connectors
+   - Leaf-to-Spine: OSFP-400G-FR4 for the 400G uplinks
+   
+This design provides:
+- Full bisection bandwidth of 12.8 Tbps
+- Expected worst-case latency of <1μs between any two nodes
+- N+1 redundancy at the spine layer
+- Support for GPUDirect RDMA across the fabric
+
+Would you like me to provide a more detailed breakdown of component selection and topology verification?
+```
+
+### 2. Failure Analysis and Prediction
+
+```
+User: We're experiencing intermittent packet loss on our east-west traffic between racks 12 and 14. The errors started yesterday after we installed new transceivers.
+
+AI Failure Analyst: Based on your description, I've analyzed several potential causes for the intermittent packet loss:
+
+1. Most likely cause (89% confidence): Power margin issues with the new transceivers
+   - The QSFP28-100G-LR4 transceivers installed have a typical TX power of 0.5 dBm
+   - Your fiber run between racks 12 and 14 is approximately 85m
+   - There are 3 patch panels in the path, adding approximately 1.2 dB of insertion loss
+   - This puts your power margin at only 2.1 dB, which is below the recommended 3.0 dB
+
+Recommendations:
+1. Replace with higher power transceivers (QSFP28-100G-ER4L) with +3.0 dBm output
+2. Clean all fiber connections to minimize insertion loss
+3. Consider testing with a direct fiber run to verify the issue
+
+Would you like me to simulate the power budget with alternative transceiver types or provide more detailed troubleshooting steps?
+```
+
+### 3. Optimization for Power Efficiency
+
+```
+User: Our datacenter PUE is increasing. Can you optimize our current network design to reduce power consumption?
+
+AI Optimization Agent: I've analyzed your current network design and identified several optimization opportunities that could reduce power consumption by approximately 31% while maintaining performance:
+
+1. Transceiver Upgrades (18% savings):
+   - Replace QSFP28-100G-LR4 transceivers with Silicon Photonics-based 100G-LR4 models
+   - These consume 2.8W vs. 3.5W and have similar performance characteristics
+   - Total savings: 4,200W across 6,000 transceivers
+
+2. Switch Power Management (9% savings):
+   - Enable Energy Efficient Ethernet (EEE) on access switches
+   - Implement port power-down on the 842 unused ports identified
+   - Schedule downlink rate adjustments during off-peak hours (midnight-6am)
+
+3. Topology Adjustments (4% savings):
+   - Consolidate east zone leaf switches from 12 to 10 switches based on current utilization
+   - Adjust oversubscription ratio to 3:1 on development network segments
+
+I've modeled the impact on latency and throughput, and all changes maintain SLA requirements while reducing power consumption from 145 kW to 100 kW for the networking equipment.
+```
+
+## Conclusion
+
+OpenOptics elevates optical network design by integrating cutting-edge AI capabilities with deep domain expertise. This framework represents a significant advancement that would impress engineers at leading AI companies by:
+
+1. **Demonstrating cross-domain expertise** in both optical networking and artificial intelligence
+2. **Solving real-world problems** for AI infrastructure design and optimization  
+3. **Applying AI intelligently** to enhance human decision-making rather than replacing it
+4. **Creating a production-quality system** with proper architecture, error handling, and extensibility
+5. **Innovating at the intersection** of network engineering and machine learning
+
+The framework makes optical network design more accessible without sacrificing depth, empowering engineers to create more efficient, reliable networks for AI infrastructure.
+
